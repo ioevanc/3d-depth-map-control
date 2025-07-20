@@ -185,13 +185,14 @@ function parseDXF(dxfContent) {
 
 function DXFViewer({ dxfUrl }) {
   const [points, setPoints] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [stats, setStats] = useState(null)
   const [loadProgress, setLoadProgress] = useState(0)
   const [depthScale, setDepthScale] = useState(2) // Start with 2x depth scaling
   const [autoRotate, setAutoRotate] = useState(false)
   const controlsRef = useRef()
+  const abortControllerRef = useRef()
   
   const handleControlsChange = (controls) => {
     controlsRef.current = controls
@@ -217,16 +218,41 @@ function DXFViewer({ dxfUrl }) {
   }
   
   useEffect(() => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Reset state when URL changes
+    setError(null)
+    setPoints([])
+    setStats(null)
+    setLoadProgress(0)
+    
+    if (!dxfUrl) {
+      setLoading(false)
+      return
+    }
+    
+    // Set loading immediately when we have a URL
+    setLoading(true)
+    setLoadProgress(0)
+    
     const loadDXF = async () => {
+      // Create new abort controller
+      abortControllerRef.current = new AbortController()
+      
       try {
-        setLoading(true)
         setLoadProgress(10)
         
         const response = await axios.get(dxfUrl, {
           responseType: 'text',
+          signal: abortControllerRef.current.signal,
           onDownloadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 80) / progressEvent.total)
-            setLoadProgress(10 + percentCompleted)
+            if (progressEvent.total) {
+              const percentCompleted = Math.round((progressEvent.loaded * 80) / progressEvent.total)
+              setLoadProgress(10 + percentCompleted)
+            }
           }
         })
         
@@ -270,14 +296,24 @@ function DXFViewer({ dxfUrl }) {
         setPoints(displayPoints)
         setLoadProgress(100)
       } catch (err) {
+        if (axios.isCancel(err)) {
+          return
+        }
         console.error('DXF loading error:', err)
-        setError(err.message)
+        setError(err.message || 'Failed to load DXF file')
       } finally {
         setLoading(false)
       }
     }
     
     loadDXF()
+    
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [dxfUrl])
   
   return (
@@ -306,7 +342,7 @@ function DXFViewer({ dxfUrl }) {
         </Box>
       ) : error ? (
         <Typography color="error">Error loading DXF: {error}</Typography>
-      ) : (
+      ) : points.length > 0 ? (
         <>
           <Box
             sx={{
@@ -457,6 +493,12 @@ function DXFViewer({ dxfUrl }) {
             🖱️ Left click + drag to rotate • Scroll to zoom • Right click + drag to pan
           </Typography>
         </>
+      ) : (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            No point cloud data available
+          </Typography>
+        </Box>
       )}
     </Paper>
   )

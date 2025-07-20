@@ -19,6 +19,7 @@ import {
   AutoFixHigh as ProcessIcon,
   CheckCircle as CheckIcon,
 } from '@mui/icons-material'
+import FileBrowserNew from './FileBrowserNew'
 
 function UploadForm({ onFileSelect, onProcess, onReset, preview, loading, hasResults, progress }) {
   const onDrop = useCallback((acceptedFiles) => {

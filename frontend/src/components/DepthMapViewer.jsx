@@ -10,9 +10,10 @@ import {
   Select,
   MenuItem,
   LinearProgress,
+  CircularProgress,
 } from '@mui/material'
 
-function DepthMapViewer({ depthMapUrl }) {
+function DepthMapViewer({ depthMapUrl, previewData, previewLoading = false, previewProgress = 0 }) {
   const canvasRef = useRef(null)
   const [depthInfo, setDepthInfo] = useState(null)
   const [colorMode, setColorMode] = useState('grayscale')
@@ -34,7 +35,7 @@ function DepthMapViewer({ depthMapUrl }) {
         canvas.height = img.height
         setDimensions({ width: img.width, height: img.height })
         
-        const ctx = canvas.getContext('2d')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
         ctx.drawImage(img, 0, 0)
         
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -50,11 +51,11 @@ function DepthMapViewer({ depthMapUrl }) {
         setLoading(false)
       }
       
-      img.src = depthMapUrl
+      img.src = previewData || depthMapUrl
     }
     
     loadImage()
-  }, [depthMapUrl])
+  }, [depthMapUrl, previewData])
   
   useEffect(() => {
     if (imageData) {
@@ -208,6 +209,40 @@ function DepthMapViewer({ depthMapUrl }) {
             borderRadius: '8px',
           }}
         />
+        
+        {/* Preview Loading Overlay */}
+        {previewLoading && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '8px',
+              backdropFilter: 'blur(2px)',
+            }}
+          >
+            <CircularProgress 
+              size={48} 
+              sx={{ 
+                color: 'primary.main',
+                mb: 2 
+              }} 
+            />
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+              Generating preview... {previewProgress}%
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Applying depth map adjustments
+            </Typography>
+          </Box>
+        )}
         
         {depthInfo && (
           <Paper

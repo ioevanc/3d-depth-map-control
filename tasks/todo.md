@@ -97,6 +97,43 @@
 
 The system now has a professional, modern UI with comprehensive file viewing and management capabilities.
 
+## Review - Session 8 (July 20, 2025, 2:30 PM EST)
+
+### Major Fixes Completed:
+
+1. **Fixed Real-time Preview Parameter Changes**
+   - Issue: Parameters only worked on first change due to faulty object reference comparison
+   - Solution: Replaced `prevParametersRef` with simple `isMountedRef` to skip only initial mount
+   - Result: All parameter changes now trigger preview updates correctly
+
+2. **Improved Visual Feedback**
+   - Added overlay on DepthMapViewer during preview generation
+   - Shows circular progress with "Generating preview..." message
+   - Added parameter-specific messages (e.g., "Applying Blur...")
+   - Made progress bar thinner and more subtle
+
+3. **Fixed Apply Parameters with Previous Files**
+   - Created new `handleReprocess` function for reprocessing with parameters
+   - Now properly fetches original image and applies new parameters
+   - Works for both fresh uploads and previously loaded files
+
+### Technical Changes:
+- DepthMapControls.jsx: Simplified change detection, added parameter tracking
+- DepthMapViewer.jsx: Added loading overlay with progress indicator
+- App.jsx: Added handleReprocess function, fixed useCallback dependencies
+- WorkspaceLayout.jsx: Pass previewLoading to DepthMapViewer
+
+### Current Issues:
+- Preview endpoint returning 500 errors intermittently
+- Need to add percentage progress to preview loading
+- Some preview requests may be failing due to backend issues
+
+### Next Priorities:
+1. Debug and fix 500 errors on preview endpoint
+2. Add progress percentage to loading indicators
+3. Investigate backend error handling for preview generation
+4. Consider adding retry logic for failed preview requests
+
 ## Review - Session 3 (July 20, 2025, 5:30 AM EST)
 
 ### Major Fixes and Improvements:
@@ -156,3 +193,55 @@ The system now has a professional, modern UI with comprehensive file viewing and
 - All features fully functional
 - UI polished with modern glassmorphism design
 - File management working with proper cleanup
+
+## Review - Session 5 (July 20, 2025, 7:00 AM EST)
+
+### Major UX Redesign and Professional Features:
+
+1. **Complete UX Overhaul**
+   - Created WorkspaceLayout.jsx with three-panel design
+   - Left panel: Upload/Browse tabs
+   - Center panel: Processing controls (always visible)
+   - Right panel: Viewers (Depth Map/3D)
+   - Consistent layout regardless of application state
+
+2. **Enhanced File Management**
+   - Created FileBrowserNew.jsx with grouped file display
+   - Added /files/grouped backend endpoint
+   - Files grouped by UUID showing all related files together
+   - One-click load all related files
+   - Smart file matching when loading DXF or depth map
+
+3. **Professional Depth Map Controls**
+   - Added DepthMapControls.jsx with professional parameters
+   - Blur, contrast, brightness, edge enhancement, invert depth
+   - Presets: Portrait, Landscape, Text/Logo, Fine Detail
+   - Real-time preview system with debouncing
+   - Loading indicators during preview generation
+
+4. **Backend Enhancements**
+   - Added DepthMapParams model for processing parameters
+   - Enhanced generate_depth_map with parameter processing
+   - Created /preview endpoint for real-time adjustments
+   - Fixed preview endpoint to accept JSON body properly
+
+5. **Git Repository Setup**
+   - Initialized Git repository
+   - Created comprehensive .gitignore
+   - Initial commit with all project files
+   - Created GitHub repo: https://github.com/ioevanc/3d-depth-map-control
+   - Successfully pushed to remote
+
+### Issues Encountered:
+- Fade component prop type warnings (fixed with boolean conversion)
+- Canvas2D performance warning (fixed with willReadFrequently)
+- Preview endpoint 422 errors (fixed by using Pydantic model)
+- Git ownership issues (resolved with safe.directory)
+- Application hanging (possibly due to too many preview requests)
+
+### Current State:
+- Three-panel layout working
+- File browser groups files intelligently
+- Controls always visible with disabled state when no data
+- Preview endpoint working but may need rate limiting
+- All original functionality preserved

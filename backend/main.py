@@ -9,18 +9,20 @@ from pathlib import Path
 from typing import Optional
 import tempfile
 import shutil
+import time
+import hashlib
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
-from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import List, Dict
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter, ImageEnhance
 import cv2
 import torch
 from transformers import pipeline
@@ -48,12 +50,25 @@ STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 depth_estimator = None
+preview_cache = {}  # Simple in-memory cache
+CACHE_EXPIRY = 60  # 60 seconds
+
+class DepthMapParams(BaseModel):
+    blur_amount: float = Field(default=0, ge=0, le=10, description="Gaussian blur amount")
+    contrast: float = Field(default=1.0, ge=0.5, le=2.0, description="Contrast adjustment")
+    brightness: int = Field(default=0, ge=-50, le=50, description="Brightness adjustment")
+    edge_enhancement: float = Field(default=0, ge=0, le=1, description="Edge enhancement strength")
+    invert_depth: bool = Field(default=False, description="Invert depth values")
+
+class ProcessingRequest(BaseModel):
+    parameters: DepthMapParams = Field(default_factory=DepthMapParams)
 
 class ProcessingResponse(BaseModel):
     original_url: str
     depth_map_url: str
     dxf_url: str
     message: str
+    parameters_used: Dict
 
 class FileInfo(BaseModel):
     filename: str
@@ -65,6 +80,18 @@ class FileInfo(BaseModel):
 class FilesListResponse(BaseModel):
     files: List[FileInfo]
     total_count: int
+
+class GroupedFile(BaseModel):
+    uuid: str
+    original_url: Optional[str] = None
+    depth_map_url: Optional[str] = None
+    dxf_url: Optional[str] = None
+    timestamp: datetime
+    total_size: int
+
+class GroupedFilesResponse(BaseModel):
+    groups: List[GroupedFile]
+    total_groups: int
 
 def get_depth_estimator():
     global depth_estimator
@@ -89,7 +116,48 @@ def validate_image_file(file: UploadFile) -> None:
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(400, f"File size must be less than {MAX_FILE_SIZE // 1024 // 1024}MB")
 
-def generate_depth_map(image_path: str, output_path: str) -> None:
+def apply_depth_parameters(depth_array: np.ndarray, params: DepthMapParams) -> np.ndarray:
+    """Apply processing parameters to depth map"""
+    processed = depth_array.copy()
+    
+    # Apply blur for noise reduction
+    if params.blur_amount > 0:
+        kernel_size = max(3, int(params.blur_amount * 2) + 1)  # Minimum kernel size of 3
+        processed = cv2.GaussianBlur(processed, (kernel_size, kernel_size), 0)
+    
+    # Apply contrast and brightness adjustments
+    if params.contrast != 1.0 or params.brightness != 0:
+        # Convert to PIL for easier manipulation
+        pil_image = Image.fromarray(processed)
+        
+        # Apply contrast
+        if params.contrast != 1.0:
+            enhancer = ImageEnhance.Contrast(pil_image)
+            pil_image = enhancer.enhance(params.contrast)
+        
+        # Apply brightness
+        if params.brightness != 0:
+            enhancer = ImageEnhance.Brightness(pil_image)
+            brightness_factor = 1.0 + (params.brightness / 100.0)
+            pil_image = enhancer.enhance(brightness_factor)
+        
+        processed = np.array(pil_image)
+    
+    # Edge enhancement
+    if params.edge_enhancement > 0:
+        # Apply edge detection
+        edges = cv2.Canny(processed, 50, 150)
+        # Blend edges with original
+        edge_weight = params.edge_enhancement * 0.3
+        processed = cv2.addWeighted(processed, 1.0, edges, edge_weight, 0)
+    
+    # Invert depth if requested
+    if params.invert_depth:
+        processed = 255 - processed
+    
+    return processed
+
+def generate_depth_map(image_path: str, output_path: str, params: DepthMapParams = None) -> None:
     """Generate depth map from image using Depth Anything V2"""
     try:
         image = Image.open(image_path).convert("RGB")
@@ -101,10 +169,18 @@ def generate_depth_map(image_path: str, output_path: str) -> None:
         depth_normalized = ((depth_array - depth_array.min()) / 
                           (depth_array.max() - depth_array.min()) * 255).astype(np.uint8)
         
+        # Apply processing parameters if provided
+        if params:
+            depth_normalized = apply_depth_parameters(depth_normalized, params)
+        
         depth_image = Image.fromarray(depth_normalized, mode='L')
         depth_image.save(output_path, "PNG")
         
     except Exception as e:
+        # Log the full error for debugging
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Depth map generation error: {error_details}")
         raise HTTPException(500, f"Depth map generation failed: {str(e)}")
 
 def depth_map_to_dxf(depth_map_path: str, dxf_path: str) -> None:
@@ -141,10 +217,26 @@ async def root():
     return {"message": "Crystal Etching Converter API", "endpoints": ["/process", "/files"]}
 
 @app.post("/process", response_model=ProcessingResponse)
-async def process_image(image: UploadFile = File(...)):
-    """Process uploaded image to generate depth map and DXF"""
+async def process_image(
+    image: UploadFile = File(...),
+    blur_amount: float = 0,
+    contrast: float = 1.0,
+    brightness: int = 0,
+    edge_enhancement: float = 0,
+    invert_depth: bool = False
+):
+    """Process uploaded image to generate depth map and DXF with custom parameters"""
     
     validate_image_file(image)
+    
+    # Create parameter object
+    params = DepthMapParams(
+        blur_amount=blur_amount,
+        contrast=contrast,
+        brightness=brightness,
+        edge_enhancement=edge_enhancement,
+        invert_depth=invert_depth
+    )
     
     unique_id = str(uuid.uuid4())
     temp_dir = Path(tempfile.mkdtemp())
@@ -166,7 +258,7 @@ async def process_image(image: UploadFile = File(...)):
         depth_map_path = STATIC_DIR / depth_map_filename
         dxf_path = STATIC_DIR / dxf_filename
         
-        generate_depth_map(str(input_path), str(depth_map_path))
+        generate_depth_map(str(input_path), str(depth_map_path), params)
         
         depth_map_to_dxf(str(depth_map_path), str(dxf_path))
         
@@ -174,7 +266,8 @@ async def process_image(image: UploadFile = File(...)):
             original_url=f"/static/{original_filename}",
             depth_map_url=f"/static/{depth_map_filename}",
             dxf_url=f"/static/{dxf_filename}",
-            message="Processing completed successfully"
+            message="Processing completed successfully",
+            parameters_used=params.dict()
         )
         
     except HTTPException:
@@ -183,6 +276,92 @@ async def process_image(image: UploadFile = File(...)):
         raise HTTPException(500, f"Processing failed: {str(e)}")
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+class PreviewRequest(BaseModel):
+    image_url: str
+    blur_amount: float = 0
+    contrast: float = 1.0
+    brightness: int = 0
+    edge_enhancement: float = 0
+    invert_depth: bool = False
+
+@app.post("/preview")
+async def preview_depth_map(request: PreviewRequest):
+    """Generate a preview of depth map with given parameters"""
+    
+    # Create cache key from request parameters
+    cache_key = hashlib.md5(
+        f"{request.image_url}_{request.blur_amount}_{request.contrast}_{request.brightness}_{request.edge_enhancement}_{request.invert_depth}".encode()
+    ).hexdigest()
+    
+    # Check cache
+    current_time = time.time()
+    if cache_key in preview_cache:
+        cached_data, timestamp = preview_cache[cache_key]
+        if current_time - timestamp < CACHE_EXPIRY:
+            return cached_data
+        else:
+            # Remove expired entry
+            del preview_cache[cache_key]
+    
+    # Clean up old cache entries
+    expired_keys = [k for k, (_, t) in preview_cache.items() if current_time - t >= CACHE_EXPIRY]
+    for k in expired_keys:
+        del preview_cache[k]
+    
+    # Create parameter object
+    params = DepthMapParams(
+        blur_amount=request.blur_amount,
+        contrast=request.contrast,
+        brightness=request.brightness,
+        edge_enhancement=request.edge_enhancement,
+        invert_depth=request.invert_depth
+    )
+    
+    try:
+        # Extract filename from URL
+        filename = request.image_url.split('/')[-1]
+        if not filename.startswith('original_'):
+            raise HTTPException(400, "Invalid image URL")
+        
+        image_path = STATIC_DIR / filename
+        if not image_path.exists():
+            raise HTTPException(404, "Image not found")
+        
+        # Generate preview in memory
+        temp_output = Path(tempfile.mktemp(suffix='.png'))
+        
+        generate_depth_map(str(image_path), str(temp_output), params)
+        
+        # Read the preview image
+        with open(temp_output, 'rb') as f:
+            preview_data = f.read()
+        
+        # Clean up temp file
+        temp_output.unlink()
+        
+        # Return base64 encoded preview
+        import base64
+        preview_base64 = base64.b64encode(preview_data).decode('utf-8')
+        
+        result = {
+            "preview": f"data:image/png;base64,{preview_base64}",
+            "parameters": params.dict()
+        }
+        
+        # Store in cache
+        preview_cache[cache_key] = (result, current_time)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log the full error for debugging
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Preview generation error: {error_details}")
+        raise HTTPException(500, f"Preview generation failed: {str(e)}")
 
 @app.get("/files", response_model=FilesListResponse)
 async def list_files():
@@ -217,6 +396,70 @@ async def list_files():
     return FilesListResponse(
         files=files_info,
         total_count=len(files_info)
+    )
+
+@app.get("/files/grouped", response_model=GroupedFilesResponse)
+async def list_grouped_files():
+    """List files grouped by UUID for better UX"""
+    import re
+    from collections import defaultdict
+    
+    groups = defaultdict(lambda: {
+        'original_url': None,
+        'depth_map_url': None,
+        'dxf_url': None,
+        'timestamp': None,
+        'total_size': 0,
+        'files': []
+    })
+    
+    uuid_pattern = r'([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+    
+    # Group files by UUID
+    for file_path in STATIC_DIR.glob("*"):
+        if file_path.is_file() and file_path.suffix in ['.png', '.jpg', '.jpeg', '.dxf']:
+            match = re.search(uuid_pattern, file_path.name)
+            if match:
+                uuid = match.group(1)
+                stat = file_path.stat()
+                url = f"/static/{file_path.name}"
+                
+                group = groups[uuid]
+                group['files'].append(file_path)
+                group['total_size'] += stat.st_size
+                
+                # Update timestamp to the most recent file with timezone awareness
+                file_time = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                if not group['timestamp'] or file_time > group['timestamp']:
+                    group['timestamp'] = file_time
+                
+                # Assign URLs based on file type
+                if file_path.name.startswith('original_'):
+                    group['original_url'] = url
+                elif file_path.name.startswith('depth_map_'):
+                    group['depth_map_url'] = url
+                elif file_path.name.startswith('output_'):
+                    group['dxf_url'] = url
+    
+    # Convert to response format
+    grouped_files = []
+    for uuid, data in groups.items():
+        if data['timestamp']:  # Only include groups with files
+            grouped_files.append(GroupedFile(
+                uuid=uuid,
+                original_url=data['original_url'],
+                depth_map_url=data['depth_map_url'],
+                dxf_url=data['dxf_url'],
+                timestamp=data['timestamp'],
+                total_size=data['total_size']
+            ))
+    
+    # Sort by timestamp (newest first)
+    grouped_files.sort(key=lambda x: x.timestamp, reverse=True)
+    
+    return GroupedFilesResponse(
+        groups=grouped_files,
+        total_groups=len(grouped_files)
     )
 
 @app.delete("/files/{filename}")

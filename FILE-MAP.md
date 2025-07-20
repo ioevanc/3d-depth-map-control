@@ -1,6 +1,6 @@
 # Crystal Etching Converter - File Map
 
-**Last Updated:** July 20, 2025, 4:40 AM
+**Last Updated:** July 20, 2025, 6:10 AM
 
 ## Project Structure
 
@@ -48,7 +48,8 @@
 │           ├── ResultsSection.jsx  # Results display with tabs
 │           ├── DepthMapViewer.jsx  # Interactive depth map viewer
 │           ├── DXFViewer.jsx       # 3D point cloud viewer
-│           └── FileBrowser.jsx     # Previous files browser
+│           ├── FileBrowser.jsx     # Previous files browser
+│           └── DepthMapControls.jsx # Professional depth map parameter controls
 │
 ├── dev_files/
 │   ├── initial.txt          # Original project requirements
@@ -64,7 +65,8 @@
 
 ### Backend Files
 - **main.py**: FastAPI server with endpoints:
-  - `POST /process` - Image processing
+  - `POST /process` - Image processing with depth map parameters
+  - `POST /preview` - Generate preview with custom parameters
   - `GET /files` - List converted files
   - `DELETE /files/{filename}` - Delete file
 - **requirements.txt**: Python packages including transformers, torch, ezdxf

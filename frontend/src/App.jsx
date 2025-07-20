@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import {
   Container,
   Typography,
@@ -24,9 +24,7 @@ import {
   AutoFixHigh as MagicIcon,
   CloudUpload as UploadIcon,
 } from '@mui/icons-material'
-import UploadForm from './components/UploadForm'
-import ResultsSection from './components/ResultsSection'
-import FileBrowser from './components/FileBrowser'
+import WorkspaceLayout from './components/WorkspaceLayout'
 import axios from 'axios'
 
 function App({ mode, setMode }) {
@@ -38,6 +36,15 @@ function App({ mode, setMode }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' })
   const [viewingPreviousFiles, setViewingPreviousFiles] = useState(false)
   const [progress, setProgress] = useState(null)
+  const [depthParameters, setDepthParameters] = useState({
+    blur_amount: 0,
+    contrast: 1.0,
+    brightness: 0,
+    edge_enhancement: 0,
+    invert_depth: false
+  })
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const abortControllerRef = useRef(null)
 
   const handleFileSelect = (file) => {
     setSelectedFile(file)
@@ -73,6 +80,11 @@ function App({ mode, setMode }) {
 
     const formData = new FormData()
     formData.append('image', selectedFile)
+    
+    // Append depth parameters
+    Object.entries(depthParameters).forEach(([key, value]) => {
+      formData.append(key, value)
+    })
 
     try {
       // Step 1: Upload
@@ -132,6 +144,7 @@ function App({ mode, setMode }) {
       }, 200)
 
       setResults(response.data)
+      setPreviewLoading(false) // Reset preview loading after processing
       setProgress(prev => ({
         value: 100,
         message: 'Processing complete!',
@@ -143,7 +156,20 @@ function App({ mode, setMode }) {
         setSnackbar({ open: true, message: 'Processing completed successfully!', severity: 'success' })
       }, 1000)
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || 'Processing failed. Please try again.'
+      let errorMessage = 'Processing failed. Please try again.'
+      
+      // Handle different error response formats
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errorMessage = err.response.data.detail
+        } else if (Array.isArray(err.response.data.detail)) {
+          // FastAPI validation errors come as array
+          errorMessage = err.response.data.detail.map(e => e.msg || e.message).join(', ')
+        } else if (typeof err.response.data.detail === 'object') {
+          errorMessage = err.response.data.detail.msg || err.response.data.detail.message || errorMessage
+        }
+      }
+      
       setError(errorMessage)
       setSnackbar({ open: true, message: errorMessage, severity: 'error' })
       setProgress(null)
@@ -163,11 +189,107 @@ function App({ mode, setMode }) {
     setProgress(null)
   }
 
+  const handleReprocess = async (parameters) => {
+    if (!results || !results.original_url) {
+      setSnackbar({ open: true, message: 'No image available to reprocess', severity: 'warning' })
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    
+    // Initialize progress for reprocessing
+    setProgress({
+      value: 0,
+      message: 'Reprocessing with new parameters...',
+      steps: [
+        { name: 'Applying Parameters', completed: false, active: true },
+        { name: 'Generating Depth Map', completed: false, active: false },
+        { name: 'Creating DXF', completed: false, active: false },
+        { name: 'Finalizing', completed: false, active: false }
+      ]
+    })
+
+    try {
+      // Extract filename from original URL
+      const originalFilename = results.original_url.split('/').pop()
+      
+      // Create FormData with the image URL
+      const formData = new FormData()
+      
+      // We need to fetch the original image and add it to FormData
+      const imageResponse = await axios.get(results.original_url, { responseType: 'blob' })
+      formData.append('image', imageResponse.data, originalFilename)
+      
+      // Add parameters
+      Object.keys(parameters).forEach(key => {
+        if (key !== 'name') { // Skip the preset name
+          formData.append(key, parameters[key])
+        }
+      })
+
+      setProgress(prev => ({
+        ...prev,
+        value: 50,
+        message: 'Processing depth map...',
+        steps: prev.steps.map((s, i) => ({ ...s, active: i === 1, completed: i < 1 }))
+      }))
+
+      const response = await axios.post('/api/process', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      })
+
+      setProgress(prev => ({
+        ...prev,
+        value: 90,
+        steps: prev.steps.map((s, i) => ({ ...s, active: i === 3, completed: i < 3 }))
+      }))
+
+      setResults(response.data)
+      setPreviewLoading(false)
+      setProgress(prev => ({
+        value: 100,
+        message: 'Reprocessing complete!',
+        steps: prev.steps.map(s => ({ ...s, active: false, completed: true }))
+      }))
+      
+      setTimeout(() => {
+        setProgress(null)
+        setSnackbar({ open: true, message: 'Reprocessing completed successfully!', severity: 'success' })
+      }, 1000)
+    } catch (err) {
+      let errorMessage = 'Reprocessing failed. Please try again.'
+      
+      // Handle different error response formats
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errorMessage = err.response.data.detail
+        } else if (Array.isArray(err.response.data.detail)) {
+          // FastAPI validation errors come as array
+          errorMessage = err.response.data.detail.map(e => e.msg || e.message).join(', ')
+        } else if (typeof err.response.data.detail === 'object') {
+          errorMessage = err.response.data.detail.msg || err.response.data.detail.message || errorMessage
+        }
+      }
+      
+      setError(errorMessage)
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' })
+      setProgress(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const toggleColorMode = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'))
   }
 
   const handleLoadPreviousFiles = (files) => {
+    // Reset preview loading when loading new files
+    setPreviewLoading(false)
+    
     // Merge new files with existing results if any
     setResults(prev => ({
       ...prev,
@@ -185,6 +307,46 @@ function App({ mode, setMode }) {
     setViewingPreviousFiles(true)
     setSnackbar({ open: true, message: 'Previous files loaded successfully!', severity: 'success' })
   }
+
+  const handleParametersChange = useCallback(async (params) => {
+    setDepthParameters(params)
+    
+    // Only generate preview if we have results with an original image
+    if (results && results.original_url) {
+      // Cancel any pending request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
+      // Create new abort controller
+      abortControllerRef.current = new AbortController()
+      
+      setPreviewLoading(true)
+      try {
+        const response = await axios.post('/api/preview', {
+          image_url: results.original_url,
+          ...params
+        }, {
+          signal: abortControllerRef.current.signal
+        })
+        
+        // Update the depth map preview
+        if (response.data.preview) {
+          setResults(prev => ({
+            ...prev,
+            depth_map_preview: response.data.preview
+          }))
+        }
+      } catch (err) {
+        // Don't log errors for aborted requests
+        if (!axios.isCancel(err)) {
+          console.error('Preview generation failed:', err)
+        }
+      } finally {
+        setPreviewLoading(false)
+      }
+    }
+  }, [results?.original_url])
 
   const handleDeleteFiles = async () => {
     if (!results || (!results.depth_map_url && !results.dxf_url)) return
@@ -283,7 +445,7 @@ function App({ mode, setMode }) {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ pt: 12, pb: 6 }}>
+      <Container maxWidth="xl" sx={{ pt: 12, pb: 6 }}>
         <Fade in timeout={800}>
           <Box sx={{ textAlign: 'center', mb: 8 }}>
             <Chip
@@ -333,97 +495,27 @@ function App({ mode, setMode }) {
           </Box>
         </Fade>
 
-        <Grid container spacing={4}>
-          {!viewingPreviousFiles && (
-            <Grid item xs={12} md={results ? 6 : 12}>
-              <Grow in timeout={1000}>
-                <Card
-                elevation={0}
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 4,
-                  overflow: 'visible',
-                  background: theme => theme.palette.mode === 'dark'
-                    ? 'rgba(26, 26, 46, 0.5)'
-                    : 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <Box sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      backgroundColor: 'primary.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <UploadIcon sx={{ color: 'white' }} />
-                    </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Upload Image
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        JPG or PNG, max 5MB
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  {error && (
-                    <Alert 
-                      severity="error" 
-                      sx={{ mb: 3, borderRadius: 2 }} 
-                      onClose={() => setError(null)}
-                    >
-                      {error}
-                    </Alert>
-                  )}
-
-                  <UploadForm
-                    onFileSelect={handleFileSelect}
-                    onProcess={handleProcess}
-                    onReset={handleReset}
-                    preview={preview}
-                    loading={loading}
-                    hasResults={!!results}
-                    progress={progress}
-                  />
-                </CardContent>
-              </Card>
-            </Grow>
-          </Grid>
-          )}
-
-          {results && (
-            <Grid item xs={12} md={viewingPreviousFiles ? 12 : 6}>
-              <Fade in timeout={500}>
-                <Box>
-                  {viewingPreviousFiles && (
-                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button 
-                        variant="outlined" 
-                        onClick={handleReset}
-                        startIcon={<UploadIcon />}
-                      >
-                        New Upload
-                      </Button>
-                    </Box>
-                  )}
-                  <ResultsSection
-                    originalUrl={results.original_url}
-                    depthMapUrl={results.depth_map_url}
-                    dxfUrl={results.dxf_url}
-                    onDelete={handleDeleteFiles}
-                  />
-                </Box>
-              </Fade>
-            </Grid>
-          )}
-        </Grid>
+        <WorkspaceLayout
+          // State
+          selectedFile={selectedFile}
+          preview={preview}
+          results={results}
+          loading={loading}
+          error={error}
+          depthParameters={depthParameters}
+          previewLoading={previewLoading}
+          viewingPreviousFiles={viewingPreviousFiles}
+          progress={progress}
+          
+          // Handlers
+          onFileSelect={handleFileSelect}
+          onProcess={handleProcess}
+          onReprocess={handleReprocess}
+          onParametersChange={handleParametersChange}
+          onDelete={handleDeleteFiles}
+          onLoadPrevious={handleLoadPreviousFiles}
+          onNewUpload={handleReset}
+        />
       </Container>
 
       <Snackbar
@@ -433,8 +525,6 @@ function App({ mode, setMode }) {
         message={snackbar.message}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
-
-      <FileBrowser onSelectFiles={handleLoadPreviousFiles} />
     </Box>
   )
 }

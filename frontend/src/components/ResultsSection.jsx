@@ -31,7 +31,7 @@ function TabPanel({ children, value, index }) {
   )
 }
 
-function ResultsSection({ originalUrl, depthMapUrl, dxfUrl, onDelete }) {
+function ResultsSection({ originalUrl, depthMapUrl, dxfUrl, onDelete, depthMapPreview }) {
   const [tabValue, setTabValue] = useState(0)
   
   const handleDownload = (url, filename) => {
@@ -197,7 +197,7 @@ function ResultsSection({ originalUrl, depthMapUrl, dxfUrl, onDelete }) {
 
         <TabPanel value={tabValue} index={1}>
           <Box sx={{ p: 3 }}>
-            <DepthMapViewer depthMapUrl={depthMapUrl} />
+            <DepthMapViewer depthMapUrl={depthMapUrl} previewData={depthMapPreview} />
           </Box>
         </TabPanel>
 

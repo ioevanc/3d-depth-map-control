@@ -31,6 +31,7 @@ import FileBrowserNew from './FileBrowserNew'
 import ProjectList from './ProjectList'
 import LoginForm from './LoginForm'
 import RegisterForm from './RegisterForm'
+import DXFUpload from './DXFUpload'
 import { useAuth } from './AuthContext'
 import {
   Dialog,
@@ -165,6 +166,12 @@ function WorkspaceLayout({
                 iconPosition="start"
                 sx={{ minHeight: 48 }}
               />
+              <Tab 
+                icon={<UploadIcon />} 
+                label="DXF" 
+                iconPosition="start"
+                sx={{ minHeight: 48, '& .MuiTab-iconWrapper': { color: '#9c27b0' } }}
+              />
               {isAuthenticated && (
                 <Tab 
                   icon={<FolderIcon />} 
@@ -253,8 +260,20 @@ function WorkspaceLayout({
               />
             </TabPanel>
             
+            <TabPanel value={leftTab} index={2}>
+              <DXFUpload 
+                onDXFUploaded={(data) => {
+                  // When DXF is uploaded, show it in the viewer
+                  onLoadPrevious({
+                    dxf_url: data.dxfUrl,
+                    analysis: data.analysis
+                  })
+                }}
+              />
+            </TabPanel>
+            
             {isAuthenticated && (
-              <TabPanel value={leftTab} index={2}>
+              <TabPanel value={leftTab} index={3}>
                 <ProjectList 
                   onLoadProject={handleLoadProject}
                 />

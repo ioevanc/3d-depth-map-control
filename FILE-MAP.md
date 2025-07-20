@@ -1,6 +1,6 @@
 # Crystal Etching Converter - File Map
 
-**Last Updated:** July 20, 2025, 6:35 PM UTC
+**Last Updated:** July 20, 2025, 7:10 PM UTC
 
 ## Project Structure
 
@@ -32,6 +32,7 @@
 │   ├── test_db_connection.py # Database connection tester
 │   ├── check_projects.py     # Database project debugging utility
 │   ├── add_background_threshold.py # Migration to add background_threshold column
+│   ├── analyze_dxf.py        # DXF file analysis utility
 │   ├── requirements.txt      # Python dependencies (+ SQLAlchemy, PyMySQL)
 │   ├── .env                  # Environment variables (DB creds, JWT secret)
 │   ├── fastapi.service      # Systemd service config
@@ -60,6 +61,7 @@
 │           ├── ResultsSection.jsx  # Results display with tabs
 │           ├── DepthMapViewer.jsx  # Interactive depth map viewer
 │           ├── DXFViewer.jsx       # 3D point cloud viewer
+│           ├── DXFUpload.jsx       # DXF file upload component
 │           ├── FileBrowser.jsx     # Previous files browser (deprecated)
 │           ├── FileBrowserNew.jsx  # Updated file browser with grouping
 │           ├── DepthMapControls.jsx # Professional depth map parameter controls
@@ -72,10 +74,14 @@
 │
 ├── dev_files/
 │   ├── initial.txt          # Original project requirements
-│   └── ui.png              # UI design reference
+│   ├── ui.png              # UI design reference
+│   ├── paw.png             # Sample paw print image (white on black)
+│   ├── depth.png           # Sample depth map
+│   ├── 3dmodel.png         # Screenshot of 3D model with background issue
+│   └── 80x50x50_ver_lisa_busby_01_export.dxf  # Sample DXF from other company
 │
 └── tasks/
-    ├── todo.md                # Task tracking with reviews (Session 11 added)
+    ├── todo.md                # Task tracking with reviews (Session 13 added)
     ├── session-2.md           # Session 2 summary
     ├── session-3.md           # Session 3 summary
     ├── session-4.md           # Session 4 summary
@@ -86,7 +92,9 @@
     ├── session-8-final.md     # Session 8 final summary
     ├── session-9.md           # Session 9 summary (authentication)
     ├── session-11.md          # Session 11 summary (project saving fix)
-    └── next-session-prompt.md # Continuation prompt (Form parameter issue)
+    ├── session-13.md          # Session 13 summary (background threshold & DXF upload)
+    ├── next-session-prompt.md # Continuation prompt (Form parameter issue)
+    └── next-session-prompt-2.md # Continuation prompt (DXF format analysis)
 ```
 
 ## Key Files Description

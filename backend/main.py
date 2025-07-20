@@ -654,6 +654,76 @@ async def preview_depth_map(request: PreviewRequest):
         print(f"Preview generation error: {error_details}")
         raise HTTPException(500, f"Preview generation failed: {str(e)}")
 
+@app.post("/upload-dxf")
+async def upload_dxf(
+    dxf_file: UploadFile = File(...),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Upload and analyze a DXF file"""
+    
+    # Validate file type
+    if not dxf_file.content_type or not dxf_file.filename.lower().endswith('.dxf'):
+        raise HTTPException(400, "File must be a DXF file")
+    
+    if dxf_file.size and dxf_file.size > MAX_FILE_SIZE:
+        raise HTTPException(400, f"File size must be less than {MAX_FILE_SIZE // 1024 // 1024}MB")
+    
+    unique_id = str(uuid.uuid4())
+    dxf_filename = f"uploaded_{unique_id}.dxf"
+    dxf_path = STATIC_DIR / dxf_filename
+    
+    try:
+        # Save uploaded DXF
+        content = await dxf_file.read()
+        with open(dxf_path, 'wb') as f:
+            f.write(content)
+        
+        # Analyze the DXF file
+        doc = ezdxf.readfile(str(dxf_path))
+        msp = doc.modelspace()
+        
+        # Count entities and get bounds
+        point_count = 0
+        min_x = min_y = min_z = float('inf')
+        max_x = max_y = max_z = float('-inf')
+        
+        for entity in msp:
+            if entity.dxftype() == 'POINT':
+                point_count += 1
+                x, y, z = entity.dxf.location
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y)
+                min_z = min(min_z, z)
+                max_z = max(max_z, z)
+        
+        if point_count == 0:
+            raise ValueError("No points found in DXF file")
+        
+        # Return analysis results
+        return {
+            "success": True,
+            "filename": dxf_filename,
+            "dxf_url": f"/static/{dxf_filename}",
+            "analysis": {
+                "point_count": point_count,
+                "bounds": {
+                    "x": {"min": min_x, "max": max_x, "range": max_x - min_x},
+                    "y": {"min": min_y, "max": max_y, "range": max_y - min_y},
+                    "z": {"min": min_z, "max": max_z, "range": max_z - min_z}
+                },
+                "dxf_version": doc.dxfversion
+            }
+        }
+        
+    except Exception as e:
+        # Clean up on error
+        if dxf_path.exists():
+            dxf_path.unlink()
+        raise HTTPException(500, f"DXF upload failed: {str(e)}")
+
 @app.get("/files", response_model=FilesListResponse)
 async def list_files():
     """List all previously converted files"""

@@ -316,6 +316,49 @@ Successfully completed the project saving functionality:
 
 The project saving feature is now complete and working correctly!
 
+## Review - Session 13 (July 20, 2025, 7:00 PM UTC)
+
+### Background Threshold Feature and DXF Upload
+
+Successfully implemented two major features:
+
+1. **Background Threshold Feature**:
+   - Added `background_threshold` parameter (0-255) to exclude black backgrounds
+   - Checks original image darkness, not just depth map
+   - Added visual feedback in preview showing excluded areas
+   - Created migration script for database schema update
+   - Added UI slider control in DepthMapControls
+   - Updated all presets with appropriate threshold values
+   - Fixed 500 error by correcting `original_image_path` parameter
+
+2. **DXF Upload Functionality**:
+   - Created `/upload-dxf` backend endpoint for DXF file uploads
+   - Added DXF analysis utility (`analyze_dxf.py`)
+   - Created DXFUpload.jsx component with drag & drop
+   - Added new "DXF" tab in WorkspaceLayout
+   - Integrated with existing 3D viewer
+
+3. **Server Script Improvements**:
+   - Created `start-backend.sh` and `start-frontend.sh` for individual server control
+   - Created `restart-servers-new.sh` with better error handling
+   - Fixed timing issues with server startup
+
+4. **Documentation**:
+   - Created IMAGE-PREPARATION-GUIDE.md with detailed instructions
+   - Updated FILE-MAP.md with all new files
+
+### Key Implementation Details:
+- Background threshold now properly excludes black areas for crystal etching
+- White/light areas = engravable, black areas = excluded (standard for laser etching)
+- DXF format compatibility confirmed: uses POINT entities with Venus3D layer
+- All changes committed and pushed to GitHub
+
+### Current State:
+- Background threshold working correctly
+- DXF upload feature ready for testing
+- Servers running with all features operational
+- Ready to analyze and compare DXF formats
+
 ## Review - Session 3 (July 20, 2025, 5:30 AM EST)
 
 ### Major Fixes and Improvements:

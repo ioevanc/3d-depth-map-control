@@ -25,6 +25,7 @@ import {
   CloudUpload as UploadIcon,
 } from '@mui/icons-material'
 import WorkspaceLayout from './components/WorkspaceLayout'
+import { AuthProvider } from './components/AuthContext'
 import axios from 'axios'
 
 function App({ mode, setMode }) {
@@ -56,7 +57,7 @@ function App({ mode, setMode }) {
     reader.readAsDataURL(file)
   }
 
-  const handleProcess = async () => {
+  const handleProcess = async (projectName, projectDescription) => {
     if (!selectedFile) {
       setSnackbar({ open: true, message: 'Please select an image first', severity: 'warning' })
       return
@@ -85,6 +86,14 @@ function App({ mode, setMode }) {
     Object.entries(depthParameters).forEach(([key, value]) => {
       formData.append(key, value)
     })
+    
+    // Append project details if provided
+    if (projectName) {
+      formData.append('project_name', projectName)
+    }
+    if (projectDescription) {
+      formData.append('project_description', projectDescription)
+    }
 
     try {
       // Step 1: Upload
@@ -379,12 +388,13 @@ function App({ mode, setMode }) {
   }
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh',
-      background: theme => theme.palette.mode === 'dark'
-        ? 'radial-gradient(ellipse at top, #1A1A2E 0%, #0F0F23 100%)'
-        : 'radial-gradient(ellipse at top, #FFFFFF 0%, #F8F9FA 100%)',
-    }}>
+    <AuthProvider>
+      <Box sx={{ 
+        minHeight: '100vh',
+        background: theme => theme.palette.mode === 'dark'
+          ? 'radial-gradient(ellipse at top, #1A1A2E 0%, #0F0F23 100%)'
+          : 'radial-gradient(ellipse at top, #FFFFFF 0%, #F8F9FA 100%)',
+      }}>
       {loading && (
         <LinearProgress 
           sx={{ 
@@ -526,6 +536,7 @@ function App({ mode, setMode }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
+    </AuthProvider>
   )
 }
 

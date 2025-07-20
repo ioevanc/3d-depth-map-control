@@ -1,6 +1,6 @@
 # Crystal Etching Converter - File Map
 
-**Last Updated:** July 20, 2025, 6:10 AM
+**Last Updated:** July 20, 2025, 6:35 PM UTC
 
 ## Project Structure
 
@@ -20,14 +20,20 @@
 ├── index.php                  # Legacy file
 │
 ├── backend/
-│   ├── main.py               # FastAPI application with all endpoints
-│   ├── requirements.txt      # Python dependencies
-│   ├── .env                  # Environment variables
+│   ├── main.py               # FastAPI application with auth endpoints
+│   ├── database.py           # SQLAlchemy models (User, Project, ProjectFile)
+│   ├── auth.py               # JWT authentication logic (with debug logging)
+│   ├── init_db.py            # Database initialization script
+│   ├── test_db_connection.py # Database connection tester
+│   ├── check_projects.py     # Database project debugging utility
+│   ├── requirements.txt      # Python dependencies (+ SQLAlchemy, PyMySQL)
+│   ├── .env                  # Environment variables (DB creds, JWT secret)
 │   ├── fastapi.service      # Systemd service config
 │   ├── test_api.sh          # API testing script
 │   ├── backend.log          # Server logs
 │   ├── venv/                # Python virtual environment
 │   └── static/              # Converted files storage
+│       ├── original_*.jpg   # Original uploaded images
 │       ├── depth_map_*.png  # Generated depth maps
 │       └── output_*.dxf     # Generated DXF files
 │
@@ -48,45 +54,98 @@
 │           ├── ResultsSection.jsx  # Results display with tabs
 │           ├── DepthMapViewer.jsx  # Interactive depth map viewer
 │           ├── DXFViewer.jsx       # 3D point cloud viewer
-│           ├── FileBrowser.jsx     # Previous files browser
-│           └── DepthMapControls.jsx # Professional depth map parameter controls
+│           ├── FileBrowser.jsx     # Previous files browser (deprecated)
+│           ├── FileBrowserNew.jsx  # Updated file browser with grouping
+│           ├── DepthMapControls.jsx # Professional depth map parameter controls
+│           ├── WorkspaceLayout.jsx # Three-panel workspace layout with auth
+│           ├── AuthContext.jsx     # Authentication context provider
+│           ├── LoginForm.jsx       # User login component
+│           ├── RegisterForm.jsx    # User registration component
+│           ├── ProjectList.jsx     # User projects list component
+│           └── ProjectCard.jsx     # Individual project card display
 │
 ├── dev_files/
 │   ├── initial.txt          # Original project requirements
 │   └── ui.png              # UI design reference
 │
 └── tasks/
-    ├── todo.md              # Task tracking
-    ├── session-2.md         # Session 2 summary
-    └── next-session-prompt.md # Continuation prompt
+    ├── todo.md                # Task tracking with reviews (Session 11 added)
+    ├── session-2.md           # Session 2 summary
+    ├── session-3.md           # Session 3 summary
+    ├── session-4.md           # Session 4 summary
+    ├── session-4-update.md    # Session 4 update
+    ├── session-6.md           # Session 6 summary
+    ├── session-7.md           # Session 7 summary
+    ├── session-8.md           # Session 8 summary
+    ├── session-8-final.md     # Session 8 final summary
+    ├── session-9.md           # Session 9 summary (authentication)
+    ├── session-11.md          # Session 11 summary (project saving fix)
+    └── next-session-prompt.md # Continuation prompt (Form parameter issue)
 ```
 
 ## Key Files Description
 
 ### Backend Files
 - **main.py**: FastAPI server with endpoints:
-  - `POST /process` - Image processing with depth map parameters
+  - `POST /process` - Image processing with depth map parameters (saves projects for auth users, uses Form() for multipart)
   - `POST /preview` - Generate preview with custom parameters
   - `GET /files` - List converted files
   - `DELETE /files/{filename}` - Delete file
-- **requirements.txt**: Python packages including transformers, torch, ezdxf
+  - `POST /register` - User registration
+  - `POST /login` - User authentication (returns JWT)
+  - `POST /token` - OAuth2 compatible login
+  - `GET /users/me` - Get current user info
+  - `GET /projects` - List user projects (returns {projects: [], total: n})
+  - `GET /projects/{id}` - Get specific project
+  - `PUT /projects/{id}` - Update project
+  - `DELETE /projects/{id}` - Delete project
+- **database.py**: SQLAlchemy models (User, Project, ProjectFile)
+- **auth.py**: JWT authentication and user management (includes debug logging)
+- **check_projects.py**: Utility script to check projects in database
+- **requirements.txt**: Python packages including transformers, torch, ezdxf, SQLAlchemy, PyMySQL
 - **static/**: Storage for processed files
 
 ### Frontend Files
-- **App.jsx**: Main component with modern UI
+- **App.jsx**: Main component with AuthProvider wrapper (includes project name handling)
 - **theme.js**: Custom MUI theme with gradients
-- **UploadForm.jsx**: Drag-and-drop upload
+- **UploadForm.jsx**: Drag-and-drop upload with project name dialog for auth users
 - **ResultsSection.jsx**: Tabbed results display
 - **DepthMapViewer.jsx**: Canvas-based depth visualization
 - **DXFViewer.jsx**: Three.js point cloud viewer
-- **FileBrowser.jsx**: File management interface
+- **FileBrowserNew.jsx**: File management with grouped display
+- **WorkspaceLayout.jsx**: Three-panel layout with authentication UI and user menu
+- **AuthContext.jsx**: Authentication state management with JWT and axios interceptors
+- **LoginForm.jsx**: Login interface with modern styling (uses /api proxy)
+- **RegisterForm.jsx**: User registration with validation (uses /api proxy)
+- **ProjectList.jsx**: Display and manage user projects (handles {projects: [], total: n})
+- **ProjectCard.jsx**: Individual project with file downloads and edit/delete
 
 ### Configuration Files
 - **nginx.conf**: Proxy configuration for production
 - **fastapi.service**: Systemd service for backend
 - **.env**: Environment variables (ports, limits)
 
-## Recent Changes (Session 2)
+## Recent Changes
+
+### Session 9 (July 20, 2025)
+- Added: database.py (SQLAlchemy models)
+- Added: auth.py (JWT authentication)
+- Added: init_db.py (DB initialization)
+- Added: test_db_connection.py (connection tester)
+- Added: FileBrowserNew.jsx (improved file browser)
+- Added: WorkspaceLayout.jsx (three-panel layout)
+- Modified: main.py (added auth endpoints)
+- Modified: .env (added DB and JWT config)
+- Modified: requirements.txt (added auth dependencies)
+- Modified: DepthMapControls.jsx (added progress %)
+- Modified: DepthMapViewer.jsx (added progress display)
+- Modified: App.jsx (fixed error handling)
+
+### Session 8
+- Added: DepthMapControls.jsx
+- Modified: preview functionality (real-time updates)
+
+### Session 2
 - Added: theme.js
 - Added: DepthMapViewer.jsx
 - Added: DXFViewer.jsx  

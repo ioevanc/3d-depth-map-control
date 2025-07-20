@@ -134,6 +134,188 @@ The system now has a professional, modern UI with comprehensive file viewing and
 3. Investigate backend error handling for preview generation
 4. Consider adding retry logic for failed preview requests
 
+## Review - Session 9 (July 20, 2025, 5:10 PM UTC)
+
+### Major Accomplishments:
+
+1. **Fixed Critical Bugs**
+   - Fixed OpenCV blur error by setting minimum kernel size to 3
+   - Fixed time display in file browser with proper timezone handling
+   - Fixed 422 error on Apply Parameters (changed FormData field from 'file' to 'image')
+   - Fixed React error handling for API responses
+
+2. **Added Progress Percentage**
+   - Implemented progress percentage display for preview generation
+   - Shows percentage in both DepthMapControls and DepthMapViewer
+   - Simulated progress animation that increments smoothly
+
+3. **Database Integration**
+   - Successfully configured MySQL database (three-3d)
+   - Created database schema with users, projects, and project_files tables
+   - Implemented secure authentication with bcrypt password hashing
+   - Added JWT token-based authentication
+   - Created admin user tomc@glassogroup.com with specified password
+
+4. **Authentication System**
+   - Created /register endpoint for new user registration
+   - Created /token and /login endpoints for authentication
+   - Created /users/me endpoint for current user info
+   - Created /users endpoint for admin user listing
+   - Added project management endpoints (/projects)
+
+### Technical Changes:
+- Updated backend dependencies: SQLAlchemy, PyMySQL, bcrypt, python-jose
+- Created database.py for models and connection management
+- Created auth.py for authentication logic
+- Updated main.py with authentication endpoints
+- Modified process endpoint to optionally save projects for authenticated users
+
+### Current State:
+- Authentication system is implemented but not yet integrated with frontend
+- Database tables are created and admin user exists
+- Backend supports both authenticated and anonymous usage
+- Project saving functionality is partially implemented (needs completion)
+
+### Pending Work:
+1. ~~Complete the process endpoint modification to save projects~~ ✓
+2. ~~Update frontend with login/registration UI~~ ✓
+3. ~~Add authentication state management in React~~ ✓
+4. ~~Implement project listing and management in frontend~~ ✓
+5. Add proper error handling for auth failures
+6. Implement CSRF protection and security middleware
+7. Add project name input when processing images
+8. Test complete authentication flow
+
+## Review - Session 10 (July 20, 2025, 5:40 PM UTC)
+
+### Major Accomplishments:
+
+1. **Completed Backend Project Saving**
+   - Modified process endpoint to save projects for authenticated users
+   - Links original, depth map, and DXF files to project records
+   - Stores processing parameters with each project
+
+2. **Created Frontend Authentication Components**
+   - LoginForm.jsx - Modern login UI with gradient styling
+   - RegisterForm.jsx - Registration with password validation
+   - AuthContext.jsx - JWT token management and auth state
+   - Updated App.jsx with AuthProvider wrapper
+
+3. **Implemented Project Management UI**
+   - ProjectList.jsx - Displays user projects with search
+   - ProjectCard.jsx - Shows project details with file downloads
+   - Added Projects tab to WorkspaceLayout
+   - Integrated authentication UI with user menu
+
+4. **Enhanced WorkspaceLayout**
+   - Added authentication dialog (login/register)
+   - Added user avatar menu with logout
+   - Added Projects tab (visible only when authenticated)
+   - Integrated project loading functionality
+
+### Files Created/Modified:
+- Created: LoginForm.jsx, RegisterForm.jsx, AuthContext.jsx, ProjectList.jsx, ProjectCard.jsx
+- Modified: App.jsx, WorkspaceLayout.jsx, main.py, FILE-MAP.md
+
+### Current State:
+- Authentication system fully integrated
+- Users can sign in/register and view their projects
+- Projects are saved automatically when authenticated
+- Anonymous usage still supported
+- All components styled consistently with the app theme
+
+### Next Steps:
+1. Add project name input field when processing (for authenticated users)
+2. Test authentication flow end-to-end
+3. Add error handling for network failures
+4. Consider adding "Save as Project" button for anonymous users
+
+## Review - Session 11 (July 20, 2025, 6:30 PM UTC)
+
+### Major Accomplishments:
+
+1. **Fixed Authentication API Endpoints**
+   - Updated all frontend components to use `/api` proxy prefix
+   - Fixed LoginForm, RegisterForm, AuthContext, ProjectList, and ProjectCard
+   - Resolved connection refused errors
+
+2. **Fixed ProjectList Data Handling**
+   - Corrected response parsing to handle `{projects: [...], total: n}` format
+   - Fixed "projects.filter is not a function" error
+   - Added span wrapper for disabled tooltip button
+
+3. **Implemented Project Name Dialog**
+   - Added dialog to prompt authenticated users for project name/description
+   - Updated UploadForm with useState hooks and dialog component
+   - Modified handleProcess to accept project name parameters
+   - Added form data append for project details
+
+4. **Discovered FormData Issue**
+   - Identified that FastAPI requires Form() for multipart parameters
+   - Updated backend to use Form() imports and decorators
+   - Debug logs showed user authenticated but project_name=None
+
+### Current Issues:
+- Project name is sent from frontend but not received by backend
+- FastAPI multipart form parsing issue with optional parameters
+- Backend needs Form() decorators for all non-file parameters
+
+### Files Modified:
+- LoginForm.jsx - Changed API URLs to use proxy
+- RegisterForm.jsx - Updated API endpoints
+- AuthContext.jsx - Fixed API URLs
+- ProjectList.jsx - Fixed data parsing and tooltip warning
+- ProjectCard.jsx - Fixed download URLs
+- UploadForm.jsx - Added project name dialog and auth integration
+- App.jsx - Added project parameters to handleProcess
+- WorkspaceLayout.jsx - Updated props passing
+- main.py - Added Form imports and parameter decorators
+
+### Next Priority:
+Complete the Form() parameter fix in backend and test project saving functionality.
+
+### Important Context:
+- Database credentials are stored in .env file (not in version control)
+- JWT tokens expire after 24 hours (1440 minutes)
+- The system supports both authenticated and anonymous usage
+- File storage still uses filesystem but is linked to projects in database
+
+## Review - Session 12 (July 20, 2025, 6:40 PM UTC)
+
+### Project Saving Feature Completed
+
+Successfully completed the project saving functionality:
+
+1. **Fixed Form() Parameter Issue**
+   - Backend was not receiving project_name due to missing Form() decorators
+   - Updated all multipart form parameters to use Form() imports
+   - Restarted servers and confirmed fix works
+
+2. **Verified Project Creation**
+   - User uploaded image with project name "Paw Prints"
+   - Project successfully saved to database with all metadata
+   - Files properly linked to project record
+   - Projects tab shows saved project
+
+3. **Cleaned Up Debug Code**
+   - Removed print statement from main.py process endpoint
+   - Removed print statement from auth.py get_current_user_optional
+   - Removed console.log from App.jsx handleProcess
+
+4. **Current System State**
+   - Authentication fully functional
+   - Projects save automatically for authenticated users
+   - Anonymous users can still use without saving
+   - All features working as expected
+
+### Test Results:
+- Successfully created project "Paw Prints" with description "To jest test"
+- Project contains 3 files (original, depth map, DXF)
+- Project correctly associated with user tomc@glassogroup.com
+- Projects list refreshes after processing
+
+The project saving feature is now complete and working correctly!
+
 ## Review - Session 3 (July 20, 2025, 5:30 AM EST)
 
 ### Major Fixes and Improvements:

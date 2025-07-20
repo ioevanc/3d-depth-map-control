@@ -12,14 +12,16 @@ import shutil
 import time
 import hashlib
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, Form
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageEnhance
@@ -28,6 +30,22 @@ import torch
 from transformers import pipeline
 import ezdxf
 from ezdxf.addons import r12writer
+
+# Import auth and database modules
+from database import get_db, init_db, create_admin_user, SessionLocal, User, Project, ProjectFile
+from auth import (
+    create_access_token, 
+    get_current_active_user,
+    get_current_user_optional,
+    get_current_admin_user,
+    authenticate_user,
+    create_user,
+    Token,
+    UserCreate,
+    UserResponse,
+    LoginRequest,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 load_dotenv()
 
@@ -92,6 +110,40 @@ class GroupedFile(BaseModel):
 class GroupedFilesResponse(BaseModel):
     groups: List[GroupedFile]
     total_groups: int
+
+# Project models
+class ProjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    blur_amount: Optional[float] = None
+    contrast: Optional[float] = None
+    brightness: Optional[int] = None
+    edge_enhancement: Optional[float] = None
+    invert_depth: Optional[bool] = None
+
+class ProjectResponse(BaseModel):
+    id: int
+    uuid: str
+    name: str
+    description: Optional[str]
+    blur_amount: float
+    contrast: float
+    brightness: int
+    edge_enhancement: float
+    invert_depth: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ProjectListResponse(BaseModel):
+    projects: List[ProjectResponse]
+    total: int
 
 def get_depth_estimator():
     global depth_estimator
@@ -214,16 +266,164 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str) -> None:
 
 @app.get("/")
 async def root():
-    return {"message": "Crystal Etching Converter API", "endpoints": ["/process", "/files"]}
+    return {
+        "message": "Crystal Etching Converter API", 
+        "endpoints": ["/process", "/files", "/register", "/token", "/users/me", "/projects"]
+    }
+
+# Authentication endpoints
+@app.post("/register", response_model=UserResponse)
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user"""
+    db_user = create_user(db, user_data)
+    return db_user
+
+@app.post("/token", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Login with username (email) and password to get access token"""
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/login", response_model=Token)
+async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
+    """Alternative login endpoint that accepts JSON instead of form data"""
+    user = authenticate_user(db, login_data.email, login_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me", response_model=UserResponse)
+async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
+    """Get current user information"""
+    return current_user
+
+@app.get("/users", response_model=List[UserResponse])
+async def list_users(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """List all users (admin only)"""
+    users = db.query(User).all()
+    return users
+
+# Project management endpoints
+@app.get("/projects", response_model=ProjectListResponse)
+async def list_projects(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100
+):
+    """List user's projects"""
+    projects = db.query(Project).filter(
+        Project.user_id == current_user.id
+    ).offset(skip).limit(limit).all()
+    
+    total = db.query(Project).filter(Project.user_id == current_user.id).count()
+    
+    return {"projects": projects, "total": total}
+
+@app.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific project"""
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    return project
+
+@app.put("/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: int,
+    project_update: ProjectUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update project details"""
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Update fields if provided
+    update_data = project_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(project, field, value)
+    
+    db.commit()
+    db.refresh(project)
+    
+    return project
+
+@app.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a project and all associated files"""
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Delete physical files
+    for file in project.files:
+        file_path = Path(file.file_path)
+        if file_path.exists():
+            file_path.unlink()
+    
+    # Delete from database
+    db.delete(project)
+    db.commit()
+    
+    return {"message": "Project deleted successfully"}
 
 @app.post("/process", response_model=ProcessingResponse)
 async def process_image(
     image: UploadFile = File(...),
-    blur_amount: float = 0,
-    contrast: float = 1.0,
-    brightness: int = 0,
-    edge_enhancement: float = 0,
-    invert_depth: bool = False
+    blur_amount: float = Form(0),
+    contrast: float = Form(1.0),
+    brightness: int = Form(0),
+    edge_enhancement: float = Form(0),
+    invert_depth: bool = Form(False),
+    project_name: Optional[str] = Form(None),
+    project_description: Optional[str] = Form(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
 ):
     """Process uploaded image to generate depth map and DXF with custom parameters"""
     
@@ -261,6 +461,57 @@ async def process_image(
         generate_depth_map(str(input_path), str(depth_map_path), params)
         
         depth_map_to_dxf(str(depth_map_path), str(dxf_path))
+        
+        # Save project if user is authenticated and project_name is provided
+        if current_user and project_name:
+            # Create project record
+            project = Project(
+                user_id=current_user.id,
+                name=project_name,
+                description=project_description or "",
+                uuid=unique_id,
+                blur_amount=blur_amount,
+                contrast=contrast,
+                brightness=brightness,
+                edge_enhancement=edge_enhancement,
+                invert_depth=invert_depth
+            )
+            db.add(project)
+            db.flush()  # Get the project ID
+            
+            # Get file sizes
+            original_size = os.path.getsize(original_path)
+            depth_map_size = os.path.getsize(depth_map_path)
+            dxf_size = os.path.getsize(dxf_path)
+            
+            # Create file records
+            original_file = ProjectFile(
+                project_id=project.id,
+                file_type="original",
+                filename=original_filename,
+                file_path=f"/static/{original_filename}",
+                file_size=original_size,
+                mime_type="image/" + Path(image.filename).suffix.lstrip('.')
+            )
+            depth_file = ProjectFile(
+                project_id=project.id,
+                file_type="depth_map",
+                filename=depth_map_filename,
+                file_path=f"/static/{depth_map_filename}",
+                file_size=depth_map_size,
+                mime_type="image/png"
+            )
+            dxf_file = ProjectFile(
+                project_id=project.id,
+                file_type="dxf",
+                filename=dxf_filename,
+                file_path=f"/static/{dxf_filename}",
+                file_size=dxf_size,
+                mime_type="application/dxf"
+            )
+            
+            db.add_all([original_file, depth_file, dxf_file])
+            db.commit()
         
         return ProcessingResponse(
             original_url=f"/static/{original_filename}",

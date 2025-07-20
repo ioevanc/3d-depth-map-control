@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import {
   Box,
@@ -11,6 +11,11 @@ import {
   IconButton,
   Chip,
   LinearProgress,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import {
   CloudUpload as CloudUploadIcon,
@@ -20,8 +25,13 @@ import {
   CheckCircle as CheckIcon,
 } from '@mui/icons-material'
 import FileBrowserNew from './FileBrowserNew'
+import { useAuth } from './AuthContext'
 
 function UploadForm({ onFileSelect, onProcess, onReset, preview, loading, hasResults, progress }) {
+  const { isAuthenticated } = useAuth()
+  const [projectNameDialog, setProjectNameDialog] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [projectDescription, setProjectDescription] = useState('')
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
       onFileSelect(acceptedFiles[0])
@@ -39,8 +49,9 @@ function UploadForm({ onFileSelect, onProcess, onReset, preview, loading, hasRes
   })
 
   return (
-    <Box>
-      {!preview ? (
+    <>
+      <Box>
+        {!preview ? (
         <Paper
           {...getRootProps()}
           elevation={0}
@@ -161,7 +172,13 @@ function UploadForm({ onFileSelect, onProcess, onReset, preview, loading, hasRes
                 <Button
                   variant="contained"
                   size="large"
-                  onClick={onProcess}
+                  onClick={() => {
+                    if (isAuthenticated) {
+                      setProjectNameDialog(true)
+                    } else {
+                      onProcess()
+                    }
+                  }}
                   disabled={loading}
                   startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ProcessIcon />}
                   sx={{
@@ -278,6 +295,58 @@ function UploadForm({ onFileSelect, onProcess, onReset, preview, loading, hasRes
         </Box>
       )}
     </Box>
+    
+    {/* Project Name Dialog */}
+    <Dialog 
+      open={projectNameDialog} 
+      onClose={() => setProjectNameDialog(false)}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>Name Your Project</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Project Name"
+          type="text"
+          fullWidth
+          variant="outlined"
+          value={projectName}
+          onChange={(e) => setProjectName(e.target.value)}
+          placeholder="e.g., Crystal Wedding Portrait"
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          margin="dense"
+          label="Description (Optional)"
+          type="text"
+          fullWidth
+          variant="outlined"
+          multiline
+          rows={3}
+          value={projectDescription}
+          onChange={(e) => setProjectDescription(e.target.value)}
+          placeholder="Add any notes about this project..."
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setProjectNameDialog(false)}>Cancel</Button>
+        <Button 
+          onClick={() => {
+            onProcess(projectName || 'Untitled Project', projectDescription)
+            setProjectNameDialog(false)
+            setProjectName('')
+            setProjectDescription('')
+          }}
+          variant="contained"
+          disabled={!projectName.trim()}
+        >
+          Process
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   )
 }
 

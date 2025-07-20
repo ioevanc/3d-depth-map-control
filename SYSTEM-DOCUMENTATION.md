@@ -46,6 +46,7 @@ The Crystal Etching Converter is a web-based application that transforms 2D phot
 - **Nginx**: Reverse proxy and static file serving
 - **CloudPanel**: Web hosting control panel
 - **Systemd**: Service management
+- **MySQL**: Database for user authentication and project storage
 
 ## Core Components
 
@@ -221,9 +222,22 @@ sudo journalctl -u fastapi -f
    - Check disk space
    - Validate file paths
 
+## Database Configuration
+
+### MySQL Setup
+- **Database Name**: three-3d
+- **User**: three-3d
+- **Password**: Stored in .env file
+- **Host**: localhost
+- **Port**: 3306
+
+### Security Notes
+- Credentials are stored in backend/.env file
+- Never commit .env file to version control
+- Use parameterized queries to prevent SQL injection
+- Passwords are hashed using bcrypt
+
 ## Future Enhancements
 - Batch processing support
 - WebSocket for real-time progress
-- Database for file metadata
-- User authentication system
 - Cloud storage integration

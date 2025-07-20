@@ -19,12 +19,26 @@ import {
   Save as SaveIcon,
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
+  Person as PersonIcon,
+  PersonOff as LogoutIcon,
+  Folder as FolderIcon,
 } from '@mui/icons-material'
 import UploadForm from './UploadForm'
 import DepthMapControls from './DepthMapControls'
 import DepthMapViewer from './DepthMapViewer'
 import DXFViewer from './DXFViewer'
 import FileBrowserNew from './FileBrowserNew'
+import ProjectList from './ProjectList'
+import LoginForm from './LoginForm'
+import RegisterForm from './RegisterForm'
+import { useAuth } from './AuthContext'
+import {
+  Dialog,
+  DialogContent,
+  Menu,
+  MenuItem,
+  Avatar,
+} from '@mui/material'
 
 function TabPanel({ children, value, index }) {
   return (
@@ -56,11 +70,66 @@ function WorkspaceLayout({
   onNewUpload,
   onSavePreset,
 }) {
-  const [leftTab, setLeftTab] = useState(0) // 0: Upload, 1: Browse
+  const [leftTab, setLeftTab] = useState(0) // 0: Upload, 1: Browse, 2: Projects
   const [rightTab, setRightTab] = useState(0) // 0: Depth Map, 1: 3D View
   const [previewProgress, setPreviewProgress] = useState(0)
+  const [authDialog, setAuthDialog] = useState(false)
+  const [authMode, setAuthMode] = useState('login') // 'login' or 'register'
+  const [anchorEl, setAnchorEl] = useState(null)
+  
+  const { user, logout, login, isAuthenticated } = useAuth()
   
   const hasResults = results && (results.depth_map_url || results.dxf_url)
+  
+  const handleLogin = async (token, tokenType) => {
+    const success = await login(token, tokenType)
+    if (success) {
+      setAuthDialog(false)
+      // Switch to projects tab if authenticated
+      if (isAuthenticated) {
+        setLeftTab(2)
+      }
+    }
+  }
+  
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget)
+  }
+  
+  const handleMenuClose = () => {
+    setAnchorEl(null)
+  }
+  
+  const handleLogout = () => {
+    logout()
+    handleMenuClose()
+    setLeftTab(0) // Switch back to upload tab
+  }
+  
+  const handleLoadProject = (project) => {
+    // Load project files
+    if (project.files) {
+      const originalFile = project.files.find(f => f.file_type === 'original')
+      const depthMapFile = project.files.find(f => f.file_type === 'depth_map')
+      const dxfFile = project.files.find(f => f.file_type === 'dxf')
+      
+      onLoadPrevious({
+        original_url: originalFile?.file_path,
+        depth_map_url: depthMapFile?.file_path,
+        dxf_url: dxfFile?.file_path,
+        parameters: {
+          blur_amount: project.blur_amount,
+          contrast: project.contrast,
+          brightness: project.brightness,
+          edge_enhancement: project.edge_enhancement,
+          invert_depth: project.invert_depth,
+        }
+      })
+      
+      // Switch to upload tab to show loaded project
+      setLeftTab(0)
+    }
+  }
   
   return (
     <Grid container spacing={2} sx={{ height: 'calc(100vh - 200px)' }}>
@@ -78,24 +147,69 @@ function WorkspaceLayout({
               : undefined
           }}
         >
-          <Tabs 
-            value={leftTab} 
-            onChange={(e, v) => setLeftTab(v)}
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
-          >
-            <Tab 
-              icon={<UploadIcon />} 
-              label="Upload" 
-              iconPosition="start"
-              sx={{ minHeight: 48 }}
-            />
-            <Tab 
-              icon={<HistoryIcon />} 
-              label="Browse Files" 
-              iconPosition="start"
-              sx={{ minHeight: 48 }}
-            />
-          </Tabs>
+          <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs 
+              value={leftTab} 
+              onChange={(e, v) => setLeftTab(v)}
+              sx={{ flexGrow: 1 }}
+            >
+              <Tab 
+                icon={<UploadIcon />} 
+                label="Upload" 
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              <Tab 
+                icon={<HistoryIcon />} 
+                label="Browse" 
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+              />
+              {isAuthenticated && (
+                <Tab 
+                  icon={<FolderIcon />} 
+                  label="Projects" 
+                  iconPosition="start"
+                  sx={{ minHeight: 48 }}
+                />
+              )}
+            </Tabs>
+            
+            {/* Auth Button */}
+            <Box sx={{ px: 1 }}>
+              {isAuthenticated ? (
+                <>
+                  <IconButton onClick={handleMenuOpen} size="small">
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                      {user?.username?.[0]?.toUpperCase() || 'U'}
+                    </Avatar>
+                  </IconButton>
+                  <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleMenuClose}
+                  >
+                    <MenuItem disabled sx={{ fontSize: '0.875rem' }}>
+                      {user?.email}
+                    </MenuItem>
+                    <MenuItem onClick={handleLogout}>
+                      <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
+                      Logout
+                    </MenuItem>
+                  </Menu>
+                </>
+              ) : (
+                <Button
+                  startIcon={<PersonIcon />}
+                  onClick={() => setAuthDialog(true)}
+                  size="small"
+                  variant="outlined"
+                >
+                  Sign In
+                </Button>
+              )}
+            </Box>
+          </Box>
           
           <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
             <TabPanel value={leftTab} index={0}>
@@ -103,7 +217,9 @@ function WorkspaceLayout({
                 onFileSelect={onFileSelect}
                 preview={preview}
                 onProcess={onProcess}
+                onReset={onNewUpload}
                 loading={loading}
+                hasResults={hasResults}
                 error={error}
                 progress={progress}
                 selectedFile={selectedFile}
@@ -136,6 +252,14 @@ function WorkspaceLayout({
                 compact={true}
               />
             </TabPanel>
+            
+            {isAuthenticated && (
+              <TabPanel value={leftTab} index={2}>
+                <ProjectList 
+                  onLoadProject={handleLoadProject}
+                />
+              </TabPanel>
+            )}
           </Box>
           
           {/* Action Buttons */}
@@ -348,6 +472,28 @@ function WorkspaceLayout({
           )}
         </Paper>
       </Grid>
+      
+      {/* Authentication Dialog */}
+      <Dialog 
+        open={authDialog} 
+        onClose={() => setAuthDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
+          {authMode === 'login' ? (
+            <LoginForm
+              onLogin={handleLogin}
+              onSwitchToRegister={() => setAuthMode('register')}
+            />
+          ) : (
+            <RegisterForm
+              onRegister={handleLogin}
+              onSwitchToLogin={() => setAuthMode('login')}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Grid>
   )
 }

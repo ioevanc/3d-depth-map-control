@@ -81,6 +81,7 @@ class Project(Base):
     brightness = Column(Integer, default=0)
     edge_enhancement = Column(Float, default=0)
     invert_depth = Column(Boolean, default=False)
+    background_threshold = Column(Integer, default=10)
     
     # Relationships
     user = relationship("User", back_populates="projects")

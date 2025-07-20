@@ -10,6 +10,7 @@
 ├── DEPLOYMENT.md               # Deployment guide
 ├── README.md                   # Project overview
 ├── FILE-MAP.md                 # This file - complete file listing
+├── IMAGE-PREPARATION-GUIDE.md  # Guide for optimal image preparation
 ├── SYSTEM-DOCUMENTATION.md     # System architecture (to be created)
 ├── DEVELOPMENT-GUIDE.md        # Development patterns (to be created)
 ├── BEST-PRACTICES.md          # Security standards (to be created)
@@ -17,6 +18,10 @@
 ├── SECURITY-CHECKLIST.md      # Security verification (to be created)
 ├── nginx.conf                 # Nginx configuration
 ├── stop-servers.sh            # Script to stop dev servers
+├── restart-servers.sh         # Original restart script
+├── restart-servers-new.sh     # Simplified restart script (recommended)
+├── start-backend.sh           # Start only backend server
+├── start-frontend.sh          # Start only frontend server
 ├── index.php                  # Legacy file
 │
 ├── backend/
@@ -26,6 +31,7 @@
 │   ├── init_db.py            # Database initialization script
 │   ├── test_db_connection.py # Database connection tester
 │   ├── check_projects.py     # Database project debugging utility
+│   ├── add_background_threshold.py # Migration to add background_threshold column
 │   ├── requirements.txt      # Python dependencies (+ SQLAlchemy, PyMySQL)
 │   ├── .env                  # Environment variables (DB creds, JWT secret)
 │   ├── fastapi.service      # Systemd service config

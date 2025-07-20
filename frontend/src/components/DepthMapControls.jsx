@@ -30,7 +30,8 @@ const presets = {
     contrast: 1.0,
     brightness: 0,
     edge_enhancement: 0,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 10
   },
   portrait: {
     name: 'Portrait',
@@ -38,7 +39,8 @@ const presets = {
     contrast: 1.2,
     brightness: 5,
     edge_enhancement: 0.3,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 10
   },
   landscape: {
     name: 'Landscape',
@@ -46,7 +48,8 @@ const presets = {
     contrast: 1.3,
     brightness: -5,
     edge_enhancement: 0.5,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 10
   },
   text: {
     name: 'Text/Logo',
@@ -54,7 +57,8 @@ const presets = {
     contrast: 1.5,
     brightness: 10,
     edge_enhancement: 0.8,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 20
   },
   fine_detail: {
     name: 'Fine Detail',
@@ -62,7 +66,8 @@ const presets = {
     contrast: 1.4,
     brightness: 0,
     edge_enhancement: 0.6,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 15
   }
 }
 
@@ -373,6 +378,28 @@ function DepthMapControls({ onParametersChange, onApply, previewLoading, disable
           }
           label="Invert Depth"
         />
+        
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Background Threshold: {parameters.background_threshold}
+          </Typography>
+          <Slider
+            value={parameters.background_threshold}
+            onChange={handleSliderChange('background_threshold')}
+            min={0}
+            max={255}
+            step={5}
+            valueLabelDisplay="auto"
+            marks={[
+              { value: 0, label: '0' },
+              { value: 128, label: '128' },
+              { value: 255, label: '255' }
+            ]}
+          />
+          <Typography variant="caption" color="text.secondary">
+            Pixels darker than this value will be excluded from the 3D model
+          </Typography>
+        </Box>
         
         <Button
           variant="contained"

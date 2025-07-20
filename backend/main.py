@@ -77,6 +77,7 @@ class DepthMapParams(BaseModel):
     brightness: int = Field(default=0, ge=-50, le=50, description="Brightness adjustment")
     edge_enhancement: float = Field(default=0, ge=0, le=1, description="Edge enhancement strength")
     invert_depth: bool = Field(default=False, description="Invert depth values")
+    background_threshold: int = Field(default=10, ge=0, le=255, description="Threshold to remove background (0-255)")
 
 class ProcessingRequest(BaseModel):
     parameters: DepthMapParams = Field(default_factory=DepthMapParams)
@@ -207,6 +208,20 @@ def apply_depth_parameters(depth_array: np.ndarray, params: DepthMapParams) -> n
     if params.invert_depth:
         processed = 255 - processed
     
+    # Apply background threshold visualization
+    # Show areas that will be excluded with a pattern
+    if params.background_threshold > 0:
+        # Create a copy for visualization
+        vis_copy = processed.copy()
+        # Set excluded areas to a distinct pattern
+        mask = processed <= params.background_threshold
+        # Create a checkerboard pattern for excluded areas
+        for y in range(0, processed.shape[0], 10):
+            for x in range(0, processed.shape[1], 10):
+                if mask[y:min(y+5, processed.shape[0]), x:min(x+5, processed.shape[1])].any():
+                    vis_copy[y:min(y+5, processed.shape[0]), x:min(x+5, processed.shape[1])] = 0
+        processed = vis_copy
+    
     return processed
 
 def generate_depth_map(image_path: str, output_path: str, params: DepthMapParams = None) -> None:
@@ -235,12 +250,19 @@ def generate_depth_map(image_path: str, output_path: str, params: DepthMapParams
         print(f"Depth map generation error: {error_details}")
         raise HTTPException(500, f"Depth map generation failed: {str(e)}")
 
-def depth_map_to_dxf(depth_map_path: str, dxf_path: str) -> None:
+def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: int = 10, original_image_path: str = None) -> None:
     """Convert depth map to DXF point cloud for laser etching"""
     try:
         depth_image = cv2.imread(depth_map_path, cv2.IMREAD_GRAYSCALE)
         if depth_image is None:
             raise ValueError("Failed to load depth map")
+        
+        # Load original image for better background detection
+        original_image = None
+        if original_image_path:
+            original_image = cv2.imread(original_image_path, cv2.IMREAD_GRAYSCALE)
+            if original_image is None:
+                print(f"Warning: Could not load original image from {original_image_path}")
         
         height, width = depth_image.shape
         
@@ -252,9 +274,22 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str) -> None:
             for x in range(0, width, PIXEL_SAMPLING_RATE):
                 depth_value = depth_image[y, x]
                 
-                if depth_value > 0:
+                # Check if we should include this point
+                include_point = True
+                
+                # First check against the original image if available
+                if original_image is not None:
+                    original_value = original_image[y, x]
+                    # Exclude dark areas in the original image
+                    if original_value <= background_threshold:
+                        include_point = False
+                else:
+                    # Fallback to depth map threshold
+                    if depth_value <= background_threshold:
+                        include_point = False
+                
+                if include_point and depth_value > 0:
                     z = (depth_value / 255.0) * MAX_DEPTH_MM
-                    
                     msp.add_point((x, height - y, z))
                     points_added += 1
         
@@ -420,6 +455,7 @@ async def process_image(
     brightness: int = Form(0),
     edge_enhancement: float = Form(0),
     invert_depth: bool = Form(False),
+    background_threshold: int = Form(10),
     project_name: Optional[str] = Form(None),
     project_description: Optional[str] = Form(None),
     current_user: Optional[User] = Depends(get_current_user_optional),
@@ -435,7 +471,8 @@ async def process_image(
         contrast=contrast,
         brightness=brightness,
         edge_enhancement=edge_enhancement,
-        invert_depth=invert_depth
+        invert_depth=invert_depth,
+        background_threshold=background_threshold
     )
     
     unique_id = str(uuid.uuid4())
@@ -460,7 +497,7 @@ async def process_image(
         
         generate_depth_map(str(input_path), str(depth_map_path), params)
         
-        depth_map_to_dxf(str(depth_map_path), str(dxf_path))
+        depth_map_to_dxf(str(depth_map_path), str(dxf_path), background_threshold, str(original_path))
         
         # Save project if user is authenticated and project_name is provided
         if current_user and project_name:
@@ -474,7 +511,8 @@ async def process_image(
                 contrast=contrast,
                 brightness=brightness,
                 edge_enhancement=edge_enhancement,
-                invert_depth=invert_depth
+                invert_depth=invert_depth,
+                background_threshold=background_threshold
             )
             db.add(project)
             db.flush()  # Get the project ID
@@ -535,6 +573,7 @@ class PreviewRequest(BaseModel):
     brightness: int = 0
     edge_enhancement: float = 0
     invert_depth: bool = False
+    background_threshold: int = 10
 
 @app.post("/preview")
 async def preview_depth_map(request: PreviewRequest):
@@ -542,7 +581,7 @@ async def preview_depth_map(request: PreviewRequest):
     
     # Create cache key from request parameters
     cache_key = hashlib.md5(
-        f"{request.image_url}_{request.blur_amount}_{request.contrast}_{request.brightness}_{request.edge_enhancement}_{request.invert_depth}".encode()
+        f"{request.image_url}_{request.blur_amount}_{request.contrast}_{request.brightness}_{request.edge_enhancement}_{request.invert_depth}_{request.background_threshold}".encode()
     ).hexdigest()
     
     # Check cache
@@ -566,7 +605,8 @@ async def preview_depth_map(request: PreviewRequest):
         contrast=request.contrast,
         brightness=request.brightness,
         edge_enhancement=request.edge_enhancement,
-        invert_depth=request.invert_depth
+        invert_depth=request.invert_depth,
+        background_threshold=request.background_threshold
     )
     
     try:

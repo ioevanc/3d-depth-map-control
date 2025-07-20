@@ -42,7 +42,8 @@ function App({ mode, setMode }) {
     contrast: 1.0,
     brightness: 0,
     edge_enhancement: 0,
-    invert_depth: false
+    invert_depth: false,
+    background_threshold: 10
   })
   const [previewLoading, setPreviewLoading] = useState(false)
   const abortControllerRef = useRef(null)

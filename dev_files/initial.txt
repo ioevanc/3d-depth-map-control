@@ -1,0 +1,52 @@
+You are an expert full-stack developer specializing in AI-integrated web applications. Your task is to implement a complete web-based system for converting a single 2D photo (e.g., JPG or PNG) into a 3D depth map (the standard term for the grayscale image representing estimated depths, where pixel intensity indicates depth for creating 3D illusions) and then into a DXF file representing a point cloud for subsurface laser etching (SSLE) in crystal blocks. This system is specifically for a business that manufactures awards and trophies, where a considerable portion of operations involves taking user-submitted photographs, converting them to a "3D" depth map, and etching it inside crystal blocks to produce a 3D look. The goal is to replace an external paid service with this in-house tool, allowing self-processing to generate DXF files compatible with their laser machines.
+
+Key Clarifications to Avoid Confusion:
+Based on extensive research, "depth map" is the proper and standard terminology for the intermediate grayscale output from monocular depth estimation (MDE). It is sometimes called a "height map" in engraving contexts, but "depth map" is accurate and widely used. This depth map is derived from a single photo via AI, then converted to a 3D point cloud (X/Y from pixel coordinates, Z from depth values), and exported as DXF with 3D POINT entities for the laser to etch points layer-by-layer inside the crystal, creating the 3D illusion.
+Do not deviate from this workflow: Photo → AI-generated depth map → Point cloud conversion → DXF export. This matches industry standards for SSLE from 2D images and ensures no wasted effort. The DXF is the final file needed for the laser; other formats like PLY or STL are not required unless specified.
+The system must run entirely on CPU (no GPU dependencies), as it's deployed on a low-spec Vultr Cloud Compute instance (1 vCPU, 2 GB RAM, Ubuntu 24.04 with CloudPanel installed for web hosting via Nginx). Keep processing lightweight for single-file, one-at-a-time use.
+Overall Architecture:
+Backend: A FastAPI-based Python web API running on the server. The API endpoint accepts a file upload (image), processes it using the Depth Anything V2 Small model, generates the depth map and DXF, and returns URLs or direct downloads for the outputs. Save temporary files in a /tmp or static folder served by Nginx.
+Frontend: A modern React app (using Vite for faster build) with a clean, user-friendly UI. It allows users to upload a photo, preview it, trigger processing, display the depth map preview, and download the DXF file (and optionally the depth map PNG). Use Material-UI (MUI) for styling to make it "nice," professional, and responsive, with a branded feel (e.g., header like "Award Crystal Etching Converter").
+Integration: Frontend communicates with backend via HTTP (e.g., POST to /process endpoint). Assume the backend is hosted on the same server; use relative URLs (e.g., /api/process) or a configurable API base. Proxy the API through Nginx for production.
+Deployment Notes: The system deploys on the existing Vultr instance with CloudPanel (which manages Nginx for web hosting). Provide detailed instructions for: installing Python deps via SSH, setting up the backend as a systemd service (for persistence), building the React app, and configuring Nginx (via CloudPanel) to serve the React static files at root and proxy /api to the FastAPI port (e.g., 8000). Ensure everything runs locally without internet post-setup (model downloads on first run).
+Backend Requirements (Python/FastAPI):
+Libraries:
+fastapi (for API)
+uvicorn (for running the server)
+transformers (for the model)
+torch, torchvision, torchaudio (CPU-only via --index-url https://download.pytorch.org/whl/cpu)
+opencv-python
+pillow
+ezdxf
+numpy
+pydantic (for models, if needed)
+Endpoints:
+POST /process: Accepts multipart/form-data with "image" file (validate as JPG/PNG). Processes the image, saves temporary files (depth_map.png, output.dxf) in a static folder (e.g., /var/www/html/static), returns JSON with download URLs (e.g., /static/depth_map.png, /static/output.dxf).
+Processing Logic:
+Load image from upload.
+Generate depth map with Depth Anything V2 Small (CPU-only; model="depth-anything/Depth-Anything-V2-Small-hf").
+Normalize to 0-255 and save as PNG (grayscale; optional inversion for etching).
+Convert to point cloud: Sample every 2nd pixel to reduce density, scale Z to 50mm max (configurable), threshold >0 to skip background/noise.
+Export to DXF with 3D POINT entities.
+Clean up temp files after response (or use unique filenames per request).
+Error Handling: Handle invalid files, processing errors (e.g., model load failure); return HTTP 400/500 with JSON messages.
+Security: Validate file types/sizes (e.g., <5MB), prevent directory traversal.
+Run Command: uvicorn main:app --host 0.0.0.0 --port 8000
+Environment: Python 3.12+. Provide pip install commands for SSH setup.
+Frontend Requirements (React):
+Setup: Use Vite (yarn create vite or npm init vite; template: react). Include react-router-dom if needed, axios for API calls, @mui/material and @emotion/react for UI.
+Components:
+App.jsx: Main layout with header (e.g., "Crystal Etching Converter for Awards & Trophies"), footer with business note.
+UploadForm: Drag-and-drop or file input for photo (limit to JPG/PNG), preview thumbnail after selection.
+ProcessingButton: Triggers API call, shows loading spinner (MUI CircularProgress).
+ResultsSection: Displays depth map image preview (img tag from URL), download buttons for depth_map.png and output.dxf (use tags or MUI Button with download attribute).
+State Management: Use React hooks (useState for file, preview, results, loading; useEffect for API calls). No Redux needed for simplicity.
+UI Design: Modern, clean—use MUI components like Button, Card, CircularProgress, Typography, Box for layout. Responsive for desktop/mobile; add tooltips explaining "depth map" and "DXF for laser etching."
+API Interaction: POST to backend /process with FormData; handle response to show results or errors (e.g., alert or Snackbar).
+Build: npm run build; serve static files via Nginx (dist folder).
+Error Handling: Show user-friendly alerts for upload failures, processing errors (e.g., "Invalid image format").
+Full Implementation:
+Provide complete code for backend (main.py) and frontend (key files: package.json, vite.config.js, src/App.jsx, src/components/UploadForm.jsx, src/components/ResultsSection.jsx, etc.).
+Include setup instructions: SSH into Vultr instance, install deps, create systemd service for backend (e.g., /etc/systemd/system/fastapi.service), build/deploy frontend via CloudPanel (add site, point to build folder, configure Nginx proxy for /api).
+Testing: Add comments for testing (e.g., curl for API: curl -F "image=@photo.jpg" http://localhost:8000/process; local dev for React: npm run dev).
+License/Notes: Header comment: Open-source based (Apache 2.0 for model); commercial use OK for this business tool. Keep code concise but functional. Suggest extensions like user auth or batch processing if time, but focus on core single-file workflow.

@@ -1,0 +1,16 @@
+[Unit]
+Description=Crystal Etching Converter FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/home/glassogroup-3d/htdocs/3d.glassogroup.com/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/glassogroup-3d/htdocs/3d.glassogroup.com/backend/venv/bin"
+ExecStart=/home/glassogroup-3d/htdocs/3d.glassogroup.com/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

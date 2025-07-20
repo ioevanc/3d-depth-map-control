@@ -269,9 +269,19 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: i
         doc = ezdxf.new('R12')
         msp = doc.modelspace()
         
+        # Create Venus3D layer to match other company's format
+        doc.layers.new(name='Venus3D')
+        
+        # Calculate center offset to center coordinates around origin
+        center_x = width / 2.0
+        center_y = height / 2.0
+        
+        # Use sampling rate of 1 for maximum detail
+        sampling_rate = 1
+        
         points_added = 0
-        for y in range(0, height, PIXEL_SAMPLING_RATE):
-            for x in range(0, width, PIXEL_SAMPLING_RATE):
+        for y in range(0, height, sampling_rate):
+            for x in range(0, width, sampling_rate):
                 depth_value = depth_image[y, x]
                 
                 # Check if we should include this point
@@ -289,12 +299,20 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: i
                         include_point = False
                 
                 if include_point and depth_value > 0:
-                    z = (depth_value / 255.0) * MAX_DEPTH_MM
-                    msp.add_point((x, height - y, z))
+                    # Convert to mm depth (allowing negative values for better range)
+                    z = (depth_value / 255.0) * MAX_DEPTH_MM - (MAX_DEPTH_MM / 4.0)
+                    
+                    # Center coordinates around origin (0,0) like the other company's format
+                    x_centered = (x - center_x) * 0.1  # Scale down to mm
+                    y_centered = (center_y - y) * 0.1  # Flip Y and scale to mm
+                    
+                    # Add point to Venus3D layer
+                    point = msp.add_point((x_centered, y_centered, z))
+                    point.dxf.layer = 'Venus3D'
                     points_added += 1
         
         doc.saveas(dxf_path)
-        print(f"DXF created with {points_added} points")
+        print(f"DXF created with {points_added} points on Venus3D layer")
         
     except Exception as e:
         raise HTTPException(500, f"DXF generation failed: {str(e)}")

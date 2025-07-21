@@ -11,10 +11,19 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from main import generate_depth_map, depth_map_to_dxf, DepthMapParams
 from database import get_db, User
 from auth import get_current_user_optional
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
+
+# Copy DepthMapParams definition to avoid circular import
+class DepthMapParams(BaseModel):
+    blur_amount: float = Field(default=0, ge=0, le=10, description="Gaussian blur amount")
+    contrast: float = Field(default=1.0, ge=0.5, le=2.0, description="Contrast adjustment")
+    brightness: int = Field(default=0, ge=-50, le=50, description="Brightness adjustment")
+    edge_enhancement: float = Field(default=0, ge=0, le=1, description="Edge enhancement strength")
+    invert_depth: bool = Field(default=False, description="Invert depth values")
+    background_threshold: int = Field(default=10, ge=0, le=255, description="Threshold to remove background (0-255)")
 
 router = APIRouter(prefix="/zones", tags=["zones"])
 
@@ -58,6 +67,8 @@ async def process_with_zones(
         
         # Generate depth map
         temp_depth = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+        # Import here to avoid circular import
+        from main import generate_depth_map
         generate_depth_map(temp_image.name, temp_depth.name, params)
         
         # Apply zones to depth map
@@ -97,6 +108,8 @@ async def process_with_zones(
         
         # Generate DXF from modified depth map
         temp_dxf = tempfile.NamedTemporaryFile(delete=False, suffix='.dxf')
+        # Import here to avoid circular import
+        from main import depth_map_to_dxf
         depth_map_to_dxf(
             temp_modified.name, 
             temp_dxf.name,

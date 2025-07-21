@@ -17,19 +17,35 @@
 
 ## Starting Development Servers
 
-### Backend Server
+**IMPORTANT: Always run servers in the background using the provided scripts!**
+
+### Quick Start (Recommended)
 ```bash
-cd backend
-source venv/bin/activate  # Activate virtual environment
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Start both servers in background
+./restart-servers-new.sh
+
+# Or start individually:
+./start-backend.sh   # Backend on port 8000
+./start-frontend.sh  # Frontend on port 5176
 ```
 
-### Frontend Server
+### Manual Start (If Needed)
 ```bash
+# Backend Server (Port 8000)
+cd backend
+source venv/bin/activate
+nohup uvicorn main:app --reload --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+
+# Frontend Server (Port 5176)
 cd frontend
 npm install  # First time only
-npm run dev  # Starts on port 5176
+nohup npm run dev > frontend.log 2>&1 &
 ```
+
+### Server Ports
+- **Backend**: Always use port `8000`
+- **Frontend**: Always use port `5176` (Vite default)
+- These ports are hardcoded in the proxy configuration
 
 ### Stop All Servers
 ```bash

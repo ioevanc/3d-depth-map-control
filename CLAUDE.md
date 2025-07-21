@@ -36,7 +36,7 @@ When in doubt, check BEST-PRACTICES.md for the secure approach.
 5. Please every step of the way just give me a high level explanation of what changes you made
 6. Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
 7. Finally, add a review section to the todo.md file with a summary of the changes you made and any other relevant information.
-8. If user says they are running out of context, write detailed summary of current session to SESSION.md file (naming convention should be session-1.md, session-2.md etc, each session file should be date and time stamped at the top. Than prepare a good prompt that can be sent to a new session to flawlessly continue where we last left off, you will name this file next-session-prompt.md <handle gracefully if such file already exists making sure not to mix things up.> Both files should be placed inside the tasks directory at the root.
+8. If user says they are running out of context, write detailed summary of current session to SESSION.md file (naming convention should be session-1.md, session-2.md etc, each session file should be date and time stamped at the top. Than prepare a good prompt that can be sent to a new session to flawlessly continue where we last left off, you will name this file next-session-prompt.md <handle gracefully this file will most likely already exist from teh previous session, overwrite with new session prompt> Both files should be placed inside the tasks directory.
 
 # Documentation Updates
 

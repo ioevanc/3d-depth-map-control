@@ -578,3 +578,46 @@ Successfully improved the crystal rendering to match reference images:
 - Environment preset changed to "studio" for better reflections
 
 The crystal now appears as a clear glass cube with visible edges, proper reflections, and the etched points visible inside - matching the reference images much more closely.
+
+## Review - Session 15 (July 21, 2025, 9:15 PM UTC)
+
+### Crystal Preview Enhancement and Documentation Updates
+
+#### Tasks Completed:
+1. **Crystal Glass Rendering Fix**:
+   - Fixed milky appearance by adjusting material thickness to 0.01
+   - Set transmission to 1 for full transparency
+   - Added specularIntensity and specularColor for proper highlights
+   - Removed deprecated reflectivity property
+   - Result: Crystal now appears as clear glass, not milky
+
+2. **Failed Enhancement Attempts** (Reverted):
+   - Tried RoundedBoxGeometry for beveled edges - didn't work properly
+   - Changed environment to "night" - made crystal milky again
+   - Added gradient background sphere - interfered with glass effect
+   - Added platform base - unnecessary visual clutter
+   - All changes reverted via git restore
+
+3. **Documentation Updates**:
+   - Updated DEVELOPMENT-GUIDE.md to emphasize background server execution
+   - Updated README.md with correct port specifications
+   - Added clear instructions for using nohup with servers
+   - Specified ports: Backend 8000, Frontend 5176
+
+#### Key Decisions:
+- Decided to keep simple box geometry without bevels for now
+- Kept "studio" environment preset for best glass appearance
+- Maintained black background for professional look
+- Focus on clarity and simplicity over complex effects
+
+#### Current System State:
+- Crystal preview working with clear glass appearance
+- All features on feature/depth-zone-editor branch functional
+- Servers configured to run in background on correct ports
+- Documentation updated with best practices
+
+#### Next Priorities:
+1. Consider alternative approaches for beveled edges (custom shader or geometry)
+2. Explore different environment maps without equipment reflections
+3. Add subtle background effects that don't interfere with glass
+4. Test crystal preview with actual DXF data from laser etching

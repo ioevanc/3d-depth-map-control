@@ -1,6 +1,6 @@
 # Crystal Etching Converter - File Map
 
-**Last Updated:** July 20, 2025, 7:10 PM UTC
+**Last Updated:** July 21, 2025, 9:20 PM UTC
 
 ## Project Structure
 
@@ -99,8 +99,12 @@
     ├── session-9.md           # Session 9 summary (authentication)
     ├── session-11.md          # Session 11 summary (project saving fix)
     ├── session-13.md          # Session 13 summary (background threshold & DXF upload)
+    ├── session-14.md          # Session 14 summary (crystal rendering enhancement)
+    ├── session-15.md          # Session 15 summary (glass fix & documentation)
     ├── next-session-prompt.md # Continuation prompt (Form parameter issue)
-    └── next-session-prompt-2.md # Continuation prompt (DXF format analysis)
+    ├── next-session-prompt-2.md # Continuation prompt (DXF format analysis)
+    ├── next-session-prompt-3.md # Continuation prompt (crystal rendering)
+    └── next-session-prompt-4.md # Continuation prompt (crystal refinements)
 ```
 
 ## Key Files Description

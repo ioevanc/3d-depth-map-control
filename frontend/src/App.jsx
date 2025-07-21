@@ -47,6 +47,7 @@ function App({ mode, setMode }) {
   })
   const [depthZones, setDepthZones] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [crystalSize, setCrystalSize] = useState([80, 80, 80])
   const abortControllerRef = useRef(null)
 
   const handleFileSelect = (file) => {
@@ -93,12 +94,18 @@ function App({ mode, setMode }) {
       endpoint = '/api/zones/process-with-zones'
       formData.append('zones', JSON.stringify(depthZones))
       formData.append('parameters', JSON.stringify(depthParameters))
-      formData.append('crystal_size', JSON.stringify([80, 100, 80])) // Default crystal size
+      formData.append('crystal_size', JSON.stringify(crystalSize))
     } else {
       // Regular processing - append parameters directly
       Object.entries(depthParameters).forEach(([key, value]) => {
         formData.append(key, value)
       })
+      // Add crystal dimensions
+      if (crystalSize && crystalSize.length === 3) {
+        formData.append('crystal_width', crystalSize[0])
+        formData.append('crystal_height', crystalSize[1])
+        formData.append('crystal_depth', crystalSize[2])
+      }
     }
     
     // Append project details if provided
@@ -250,6 +257,13 @@ function App({ mode, setMode }) {
           formData.append(key, parameters[key])
         }
       })
+      
+      // Add crystal dimensions
+      if (crystalSize && crystalSize.length === 3) {
+        formData.append('crystal_width', crystalSize[0])
+        formData.append('crystal_height', crystalSize[1])
+        formData.append('crystal_depth', crystalSize[2])
+      }
 
       setProgress(prev => ({
         ...prev,
@@ -532,6 +546,8 @@ function App({ mode, setMode }) {
           previewLoading={previewLoading}
           viewingPreviousFiles={viewingPreviousFiles}
           progress={progress}
+          crystalSize={crystalSize}
+          setCrystalSize={setCrystalSize}
           
           // Handlers
           onFileSelect={handleFileSelect}

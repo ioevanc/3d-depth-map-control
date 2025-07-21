@@ -66,6 +66,8 @@ function WorkspaceLayout({
   previewLoading,
   viewingPreviousFiles,
   progress,
+  crystalSize,
+  setCrystalSize,
   
   // Handlers
   onFileSelect,
@@ -393,6 +395,7 @@ function WorkspaceLayout({
                 previewLoading={previewLoading}
                 disabled={!hasResults && !selectedFile}
                 onProgressChange={setPreviewProgress}
+                onCrystalSizeChange={setCrystalSize}
               />
               
               {/* Status Chips */}

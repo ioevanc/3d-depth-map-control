@@ -22,6 +22,7 @@ import {
   Save as SaveIcon,
   CloudUpload as LoadIcon
 } from '@mui/icons-material'
+import CrystalSizeSelector from './CrystalSizeSelector'
 
 const presets = {
   default: {
@@ -71,11 +72,12 @@ const presets = {
   }
 }
 
-function DepthMapControls({ onParametersChange, onApply, previewLoading, disabled = false, onProgressChange }) {
+function DepthMapControls({ onParametersChange, onApply, previewLoading, disabled = false, onProgressChange, onCrystalSizeChange }) {
   const [selectedPreset, setSelectedPreset] = useState('default')
   const [parameters, setParameters] = useState(presets.default)
   const [lastChangedParam, setLastChangedParam] = useState(null)
   const [previewProgress, setPreviewProgress] = useState(0)
+  const [crystalSize, setCrystalSize] = useState([80, 80, 80])
   
   const previewTimeoutRef = useRef(null)
   const lastPreviewRequestRef = useRef(null)
@@ -205,6 +207,13 @@ function DepthMapControls({ onParametersChange, onApply, previewLoading, disable
     setParameters(presets.default)
   }
   
+  const handleCrystalSizeChange = (size) => {
+    setCrystalSize(size)
+    if (onCrystalSizeChange) {
+      onCrystalSizeChange(size)
+    }
+  }
+
   const handleApply = () => {
     onApply(parameters)
   }
@@ -399,6 +408,14 @@ function DepthMapControls({ onParametersChange, onApply, previewLoading, disable
           <Typography variant="caption" color="text.secondary">
             Pixels darker than this value will be excluded from the 3D model
           </Typography>
+        </Box>
+        
+        {/* Crystal Size Selector */}
+        <Box sx={{ mt: 3 }}>
+          <CrystalSizeSelector 
+            onSizeChange={handleCrystalSizeChange}
+            disabled={disabled}
+          />
         </Box>
         
         <Button

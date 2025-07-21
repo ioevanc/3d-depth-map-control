@@ -114,7 +114,10 @@ async def process_with_zones(
             temp_modified.name, 
             temp_dxf.name,
             params.background_threshold,
-            temp_image.name
+            temp_image.name,
+            crystal_data[0],  # width
+            crystal_data[1],  # height
+            crystal_data[2]   # depth
         )
         
         # TODO: Save files and create project if user is authenticated

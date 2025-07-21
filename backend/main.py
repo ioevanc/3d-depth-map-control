@@ -92,6 +92,7 @@ class ProcessingResponse(BaseModel):
     dxf_url: str
     message: str
     parameters_used: Dict
+    crystal_dimensions: Optional[Dict[str, float]] = None
 
 class FileInfo(BaseModel):
     filename: str
@@ -254,8 +255,20 @@ def generate_depth_map(image_path: str, output_path: str, params: DepthMapParams
         print(f"Depth map generation error: {error_details}")
         raise HTTPException(500, f"Depth map generation failed: {str(e)}")
 
-def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: int = 10, original_image_path: str = None) -> None:
-    """Convert depth map to DXF point cloud for laser etching"""
+def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: int = 10, 
+                     original_image_path: str = None, crystal_width: float = None, 
+                     crystal_height: float = None, crystal_depth: float = None) -> None:
+    """Convert depth map to DXF point cloud for laser etching
+    
+    Args:
+        depth_map_path: Path to depth map image
+        dxf_path: Output DXF file path
+        background_threshold: Threshold for background removal (0-255)
+        original_image_path: Optional path to original image for better background detection
+        crystal_width: Target crystal width in mm (if None, uses default scaling)
+        crystal_height: Target crystal height in mm (if None, uses default scaling)
+        crystal_depth: Target crystal depth in mm (if None, uses MAX_DEPTH_MM)
+    """
     try:
         depth_image = cv2.imread(depth_map_path, cv2.IMREAD_GRAYSCALE)
         if depth_image is None:
@@ -269,6 +282,25 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: i
                 print(f"Warning: Could not load original image from {original_image_path}")
         
         height, width = depth_image.shape
+        
+        # Calculate scaling factors
+        if crystal_width and crystal_height:
+            # Calculate scale to fit image into crystal while maintaining aspect ratio
+            scale_x = crystal_width / width
+            scale_y = crystal_height / height
+            scale = min(scale_x, scale_y)  # Use smaller scale to maintain aspect ratio
+            
+            # Calculate actual dimensions after scaling
+            actual_width = width * scale
+            actual_height = height * scale
+        else:
+            # Default scaling: 0.1mm per pixel (legacy behavior)
+            scale = 0.1
+            actual_width = width * scale
+            actual_height = height * scale
+        
+        # Use provided crystal depth or default
+        max_depth = crystal_depth if crystal_depth else MAX_DEPTH_MM
         
         doc = ezdxf.new('R12')
         msp = doc.modelspace()
@@ -303,12 +335,13 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: i
                         include_point = False
                 
                 if include_point and depth_value > 0:
-                    # Convert to mm depth (allowing negative values for better range)
-                    z = (depth_value / 255.0) * MAX_DEPTH_MM - (MAX_DEPTH_MM / 4.0)
+                    # Convert to mm depth using crystal depth
+                    # Map depth values to use 50% of crystal depth by default
+                    z = (depth_value / 255.0) * (max_depth * 0.5)
                     
-                    # Center coordinates around origin (0,0) like the other company's format
-                    x_centered = (x - center_x) * 0.1  # Scale down to mm
-                    y_centered = (center_y - y) * 0.1  # Flip Y and scale to mm
+                    # Center coordinates around origin (0,0) and apply scaling
+                    x_centered = (x - center_x) * scale
+                    y_centered = (center_y - y) * scale  # Flip Y
                     
                     # Add point to Venus3D layer
                     point = msp.add_point((x_centered, y_centered, z))
@@ -316,7 +349,10 @@ def depth_map_to_dxf(depth_map_path: str, dxf_path: str, background_threshold: i
                     points_added += 1
         
         doc.saveas(dxf_path)
-        print(f"DXF created with {points_added} points on Venus3D layer")
+        if crystal_width and crystal_height:
+            print(f"DXF created with {points_added} points on Venus3D layer (scaled to {crystal_width}x{crystal_height}x{crystal_depth}mm)")
+        else:
+            print(f"DXF created with {points_added} points on Venus3D layer")
         
     except Exception as e:
         raise HTTPException(500, f"DXF generation failed: {str(e)}")
@@ -478,6 +514,9 @@ async def process_image(
     edge_enhancement: float = Form(0),
     invert_depth: bool = Form(False),
     background_threshold: int = Form(10),
+    crystal_width: Optional[float] = Form(None),
+    crystal_height: Optional[float] = Form(None),
+    crystal_depth: Optional[float] = Form(None),
     project_name: Optional[str] = Form(None),
     project_description: Optional[str] = Form(None),
     current_user: Optional[User] = Depends(get_current_user_optional),
@@ -519,7 +558,8 @@ async def process_image(
         
         generate_depth_map(str(input_path), str(depth_map_path), params)
         
-        depth_map_to_dxf(str(depth_map_path), str(dxf_path), background_threshold, str(original_path))
+        depth_map_to_dxf(str(depth_map_path), str(dxf_path), background_threshold, 
+                         str(original_path), crystal_width, crystal_height, crystal_depth)
         
         # Save project if user is authenticated and project_name is provided
         if current_user and project_name:
@@ -573,12 +613,22 @@ async def process_image(
             db.add_all([original_file, depth_file, dxf_file])
             db.commit()
         
+        # Prepare crystal dimensions for response
+        crystal_dims = None
+        if crystal_width and crystal_height and crystal_depth:
+            crystal_dims = {
+                "width": crystal_width,
+                "height": crystal_height,
+                "depth": crystal_depth
+            }
+        
         return ProcessingResponse(
             original_url=f"/static/{original_filename}",
             depth_map_url=f"/static/{depth_map_filename}",
             dxf_url=f"/static/{dxf_filename}",
             message="Processing completed successfully",
-            parameters_used=params.dict()
+            parameters_used=params.dict(),
+            crystal_dimensions=crystal_dims
         )
         
     except HTTPException:

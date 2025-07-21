@@ -66,6 +66,7 @@
 │           ├── DXFUpload.jsx       # DXF file upload component
 │           ├── FileBrowser.jsx     # Previous files browser (deprecated)
 │           ├── FileBrowserNew.jsx  # Updated file browser with grouping
+│           ├── CrystalSizeSelector.jsx # Crystal size selection component
 │           ├── DepthMapControls.jsx # Professional depth map parameter controls
 │           ├── WorkspaceLayout.jsx # Three-panel workspace layout with auth
 │           ├── AuthContext.jsx     # Authentication context provider

@@ -359,6 +359,65 @@ Successfully implemented two major features:
 - Servers running with all features operational
 - Ready to analyze and compare DXF formats
 
+## Review - Depth Zone Editor Feature Branch (July 20, 2025, 8:00 PM UTC)
+
+### Major Feature Implementation: Layer-Based Depth Editing System
+
+Successfully implemented a comprehensive depth zone editing system with 3D crystal preview:
+
+1. **Created DepthZoneEditor Component**
+   - Canvas-based drawing interface for defining zones
+   - Rectangle and lasso selection tools
+   - Zone types: 3D Depth Mapped, Flat (fixed depth), Custom depth
+   - Layer management panel with visibility controls
+   - Depth adjustment sliders for flat/custom zones
+   - Text detection integration
+
+2. **Created CrystalPreview Component**
+   - 3D visualization of crystal with Three.js
+   - Transparent glass material rendering
+   - Point cloud display inside crystal
+   - Crystal size presets (50×50×80mm, 60×60×100mm, 80×50×120mm)
+   - Custom size input
+   - Opacity controls and view modes
+
+3. **Backend Zone Processing**
+   - Created `/api/zones/process-with-zones` endpoint
+   - Applies zone masks to depth map during processing
+   - Supports flat depth overrides for text areas
+   - Created `/api/zones/detect-text` endpoint for automatic text detection
+
+4. **Integration Updates**
+   - Added "Depth Zones" tab to left panel
+   - Added "Crystal Preview" tab to right panel
+   - Connected zone data flow from editor to processing
+   - Parse DXF files for crystal preview visualization
+   - Updated App.jsx to use zones endpoint when zones are defined
+
+### Technical Implementation:
+- Zone masks created using HTML5 Canvas and cv2.fillPoly
+- DXF parser extracts points for 3D visualization
+- Conditional endpoint selection based on zone presence
+- Real-time canvas updates with zone overlays
+
+### Files Created/Modified:
+- Created: DepthZoneEditor.jsx, CrystalPreview.jsx, parseDXF.js, zones.py
+- Modified: WorkspaceLayout.jsx, App.jsx, main.py, FILE-MAP.md
+
+### Current Feature State:
+- All components created and connected
+- Zone drawing and management functional
+- Text detection implemented
+- Crystal preview with DXF points
+- Backend processing with zones ready
+- Feature branch ready for testing and refinement
+
+### Next Priority:
+- Improve crystal rendering to match reference images (crystal1.png, crystal2.png)
+- Crystal should look like clear glass with proper refraction
+- Add more interesting background gradient
+- Fix material properties for realistic crystal appearance
+
 ## Review - Session 3 (July 20, 2025, 5:30 AM EST)
 
 ### Major Fixes and Improvements:
@@ -470,3 +529,52 @@ Successfully implemented two major features:
 - Controls always visible with disabled state when no data
 - Preview endpoint working but may need rate limiting
 - All original functionality preserved
+
+## Review - Session 14 (July 21, 2025, 8:45 PM UTC)
+
+### Crystal Rendering Enhancement Completed
+
+Successfully improved the crystal rendering to match reference images:
+
+1. **Crystal Material Updates**:
+   - Changed to pure white color for clarity
+   - Adjusted opacity to 0.3x multiplier for balanced transparency
+   - Set IOR to 1.45 (K9 optical glass)
+   - Added attenuation properties for realistic light behavior
+   - Increased environment map intensity for stronger reflections
+   - Enabled shadow casting
+
+2. **Reflection Plane**:
+   - Added dark metallic surface under crystal
+   - Receives shadows for realistic grounding
+   - Subtle metalness (0.8) and slight roughness (0.2)
+
+3. **Background Enhancement**:
+   - Changed to dark gradient (black to dark gray)
+   - Removed fog for crystal clarity
+   - Added tone mapping for better exposure
+
+4. **Lighting Improvements**:
+   - Added proper rim lighting for edge definition
+   - Key light with shadows for depth
+   - Side lights for crystal edges
+   - Bottom light for base reflections
+   - Subtle colored accent lights
+
+5. **Edge Definition**:
+   - Increased edge line opacity to 0.6 for visibility
+   - Added subtle blue glow edges
+   - Crystal now has clear, defined edges like reference
+
+6. **Point Cloud**:
+   - Changed to white points for better visibility inside glass
+   - Added depth-based color variation
+   - Adjusted size and blending for clarity
+
+### Technical Changes:
+- CrystalPreview.jsx: Complete material and lighting overhaul
+- Changed default opacity to 0.8 for realistic glass
+- Disabled grid by default for cleaner appearance
+- Environment preset changed to "studio" for better reflections
+
+The crystal now appears as a clear glass cube with visible edges, proper reflections, and the etched points visible inside - matching the reference images much more closely.

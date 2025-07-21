@@ -63,6 +63,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+from routers import zones
+app.include_router(zones.router, prefix="/api")
+
 STATIC_DIR = Path("static")
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

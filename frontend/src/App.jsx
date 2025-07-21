@@ -45,6 +45,7 @@ function App({ mode, setMode }) {
     invert_depth: false,
     background_threshold: 10
   })
+  const [depthZones, setDepthZones] = useState([])
   const [previewLoading, setPreviewLoading] = useState(false)
   const abortControllerRef = useRef(null)
 
@@ -83,10 +84,22 @@ function App({ mode, setMode }) {
     const formData = new FormData()
     formData.append('image', selectedFile)
     
-    // Append depth parameters
-    Object.entries(depthParameters).forEach(([key, value]) => {
-      formData.append(key, value)
-    })
+    // Check if we should use zones endpoint
+    const hasZones = depthZones && depthZones.length > 0
+    let endpoint = '/api/process'
+    
+    if (hasZones) {
+      // Use zones endpoint
+      endpoint = '/api/zones/process-with-zones'
+      formData.append('zones', JSON.stringify(depthZones))
+      formData.append('parameters', JSON.stringify(depthParameters))
+      formData.append('crystal_size', JSON.stringify([80, 100, 80])) // Default crystal size
+    } else {
+      // Regular processing - append parameters directly
+      Object.entries(depthParameters).forEach(([key, value]) => {
+        formData.append(key, value)
+      })
+    }
     
     // Append project details if provided
     if (projectName) {
@@ -115,7 +128,7 @@ function App({ mode, setMode }) {
         }))
       }, 500)
 
-      const response = await axios.post('/api/process', formData, {
+      const response = await axios.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -514,6 +527,8 @@ function App({ mode, setMode }) {
           loading={loading}
           error={error}
           depthParameters={depthParameters}
+          depthZones={depthZones}
+          setDepthZones={setDepthZones}
           previewLoading={previewLoading}
           viewingPreviousFiles={viewingPreviousFiles}
           progress={progress}

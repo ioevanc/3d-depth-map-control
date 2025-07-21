@@ -39,6 +39,8 @@
 │   ├── test_api.sh          # API testing script
 │   ├── backend.log          # Server logs
 │   ├── venv/                # Python virtual environment
+│   ├── routers/             # API route modules
+│   │   └── zones.py         # Depth zone processing endpoints
 │   └── static/              # Converted files storage
 │       ├── original_*.jpg   # Original uploaded images
 │       ├── depth_map_*.png  # Generated depth maps
@@ -70,7 +72,11 @@
 │           ├── LoginForm.jsx       # User login component
 │           ├── RegisterForm.jsx    # User registration component
 │           ├── ProjectList.jsx     # User projects list component
-│           └── ProjectCard.jsx     # Individual project card display
+│           ├── ProjectCard.jsx     # Individual project card display
+│           ├── DepthZoneEditor/   # Depth zone editing system
+│           │   └── DepthZoneEditor.jsx  # Main zone editor component
+│           └── CrystalPreview/    # 3D crystal visualization
+│               └── CrystalPreview.jsx   # Crystal preview component
 │
 ├── dev_files/
 │   ├── initial.txt          # Original project requirements

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   Paper,
@@ -22,6 +22,7 @@ import {
   Person as PersonIcon,
   PersonOff as LogoutIcon,
   Folder as FolderIcon,
+  Layers as LayersIcon,
 } from '@mui/icons-material'
 import UploadForm from './UploadForm'
 import DepthMapControls from './DepthMapControls'
@@ -32,6 +33,9 @@ import ProjectList from './ProjectList'
 import LoginForm from './LoginForm'
 import RegisterForm from './RegisterForm'
 import DXFUpload from './DXFUpload'
+import DepthZoneEditor from './DepthZoneEditor/DepthZoneEditor'
+import CrystalPreview from './CrystalPreview/CrystalPreview'
+import { parseDXFFromUrl } from './CrystalPreview/parseDXF.js'
 import { useAuth } from './AuthContext'
 import {
   Dialog,
@@ -57,6 +61,8 @@ function WorkspaceLayout({
   loading,
   error,
   depthParameters,
+  depthZones,
+  setDepthZones,
   previewLoading,
   viewingPreviousFiles,
   progress,
@@ -71,16 +77,28 @@ function WorkspaceLayout({
   onNewUpload,
   onSavePreset,
 }) {
-  const [leftTab, setLeftTab] = useState(0) // 0: Upload, 1: Browse, 2: Projects
-  const [rightTab, setRightTab] = useState(0) // 0: Depth Map, 1: 3D View
+  const [leftTab, setLeftTab] = useState(0) // 0: Upload, 1: Depth Zones, 2: Browse, 3: DXF, 4: Projects
+  const [rightTab, setRightTab] = useState(0) // 0: Depth Map, 1: 3D View, 2: Crystal Preview
   const [previewProgress, setPreviewProgress] = useState(0)
   const [authDialog, setAuthDialog] = useState(false)
   const [authMode, setAuthMode] = useState('login') // 'login' or 'register'
   const [anchorEl, setAnchorEl] = useState(null)
+  const [dxfPoints, setDxfPoints] = useState([])
   
   const { user, logout, login, isAuthenticated } = useAuth()
   
   const hasResults = results && (results.depth_map_url || results.dxf_url)
+  
+  // Parse DXF points when DXF URL changes
+  useEffect(() => {
+    if (results?.dxf_url) {
+      parseDXFFromUrl(results.dxf_url).then(points => {
+        setDxfPoints(points)
+      })
+    } else {
+      setDxfPoints([])
+    }
+  }, [results?.dxf_url])
   
   const handleLogin = async (token, tokenType) => {
     const success = await login(token, tokenType)
@@ -88,7 +106,7 @@ function WorkspaceLayout({
       setAuthDialog(false)
       // Switch to projects tab if authenticated
       if (isAuthenticated) {
-        setLeftTab(2)
+        setLeftTab(4) // Projects is now index 4
       }
     }
   }
@@ -159,6 +177,13 @@ function WorkspaceLayout({
                 label="Upload" 
                 iconPosition="start"
                 sx={{ minHeight: 48 }}
+              />
+              <Tab 
+                icon={<LayersIcon />} 
+                label="Depth Zones" 
+                iconPosition="start"
+                sx={{ minHeight: 48 }}
+                disabled={!selectedFile && !results?.original_url}
               />
               <Tab 
                 icon={<HistoryIcon />} 
@@ -254,13 +279,21 @@ function WorkspaceLayout({
             </TabPanel>
             
             <TabPanel value={leftTab} index={1}>
+              <DepthZoneEditor
+                originalImage={results?.original_url || preview}
+                onZonesChange={setDepthZones}
+                disabled={!selectedFile && !results?.original_url}
+              />
+            </TabPanel>
+            
+            <TabPanel value={leftTab} index={2}>
               <FileBrowserNew 
                 onLoadFiles={onLoadPrevious}
                 compact={true}
               />
             </TabPanel>
             
-            <TabPanel value={leftTab} index={2}>
+            <TabPanel value={leftTab} index={3}>
               <DXFUpload 
                 onDXFUploaded={(data) => {
                   // When DXF is uploaded, show it in the viewer
@@ -273,7 +306,7 @@ function WorkspaceLayout({
             </TabPanel>
             
             {isAuthenticated && (
-              <TabPanel value={leftTab} index={3}>
+              <TabPanel value={leftTab} index={4}>
                 <ProjectList 
                   onLoadProject={handleLoadProject}
                 />
@@ -409,6 +442,11 @@ function WorkspaceLayout({
                   disabled={!results.dxf_url}
                   sx={{ minHeight: 48 }}
                 />
+                <Tab 
+                  label="Crystal Preview" 
+                  disabled={!results.dxf_url}
+                  sx={{ minHeight: 48 }}
+                />
               </Tabs>
               
               <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
@@ -426,6 +464,18 @@ function WorkspaceLayout({
                 <TabPanel value={rightTab} index={1}>
                   {results.dxf_url && (
                     <DXFViewer dxfUrl={results.dxf_url} />
+                  )}
+                </TabPanel>
+                
+                <TabPanel value={rightTab} index={2}>
+                  {results.dxf_url && (
+                    <CrystalPreview 
+                      dxfPoints={dxfPoints}
+                      zones={depthZones}
+                      onCrystalSizeChange={(size) => {
+                        console.log('Crystal size changed:', size)
+                      }}
+                    />
                   )}
                 </TabPanel>
               </Box>
